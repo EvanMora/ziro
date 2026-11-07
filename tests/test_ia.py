@@ -40,7 +40,7 @@ def test_frase_completa_devuelve_la_sugerencia(monkeypatch):
 
     assert r.status_code == 200
     assert r.json() == {"tipo": "gasto", "monto": "45000", "categoria_id": 4, "cuenta_id": 3,
-                        "fecha": "2026-11-14", "descripcion": "Taxi"}
+                        "fecha": "2026-11-14", "descripcion": "Taxi", "categoria_nueva": None}
     # Gemini recibe la fecha de hoy, el catálogo y la frase.
     assert "domingo 2026-11-15" in prompts[0]
     assert "- 4: Transporte, gasto" in prompts[0] and "- 3: Efectivo" in prompts[0]

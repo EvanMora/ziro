@@ -28,6 +28,9 @@ class MovimientoSugerido(BaseModel):
     cuenta_id: int | None = None
     fecha: date | None = None
     descripcion: str = ""
+    # Nombre de una categoría nueva que el diálogo ofrece ya elegida y crea solo si se guarda. Viene
+    # cuando ninguna categoría encaja (categoria_id es entonces la de "Otros" de ese tipo).
+    categoria_nueva: str | None = None
 
 
 class AnalisisMes(BaseModel):

@@ -1,0 +1,35 @@
+{#
+  Ordenar Otros con Gemini, en la barra superior de Categorías: botón "Ordenar Otros ▾" que
+  despliega grupos de movimientos de "Otros" del mes que se está viendo, cada uno con la categoría
+  a la que pasarlos (una existente o una nueva) y casillas para dejar fuera alguno. Se pide al
+  abrirlo por primera vez (GET /api/v1/ia/ordenar-otros) y cada grupo se aplica al aceptarlo
+  (POST /api/v1/ia/ordenar-otros/aplicar). Abrir y cerrar lo maneja static/js/desplegable.js; lo
+  demás, static/js/ordenar-otros.js. Espera "datos" (CategoriasDelMes). Solo se incluye si hay
+  GEMINI_API_KEY.
+#}
+{% set nombre = datos.mes | nombre_mes %}
+<div class="asistente" data-ordenar-otros data-desplegable data-anio="{{ datos.anio }}" data-mes="{{ datos.mes }}"
+     data-nombre-mes="{{ nombre }}">
+  <button class="asistente__boton" type="button" aria-expanded="false" aria-controls="ordenar-panel"
+          aria-label="Ordenar Otros de {{ nombre }} con IA" data-desplegable-boton>
+    <svg class="ia-icono" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z"/></svg>
+    <span class="asistente__etiqueta">Ordenar Otros</span>
+    <svg class="asistente__flecha" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5l3-3"/></svg>
+  </button>
+
+  <div class="asistente__panel orden__panel" id="ordenar-panel" role="dialog" aria-labelledby="ordenar-titulo"
+       data-desplegable-panel hidden>
+    <div>
+      <p class="asistente__titulo" id="ordenar-titulo">Ordenar Otros de {{ nombre }}</p>
+      <p class="asistente__texto">Te propongo a qué categoría pasar lo que quedó en Otros. Nada cambia hasta que aceptas un grupo.</p>
+    </div>
+
+    <div class="orden__cuerpo" aria-live="polite" aria-busy="false" data-orden-cuerpo></div>
+
+    <p class="analisis__nota">
+      <svg class="ia-icono" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z"/></svg>
+      La IA solo ve las descripciones de esos movimientos. No ve montos, fechas ni cuentas.
+    </p>
+  </div>
+</div>
+<script src="{{ static('js/ordenar-otros.js') }}" defer></script>

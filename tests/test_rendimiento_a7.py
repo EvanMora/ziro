@@ -15,7 +15,8 @@ from app.main import app
 
 client = TestClient(app)
 JS = Path(__file__).resolve().parent.parent / "app" / "static" / "js"
-ESCRIBEN_AVISO = ("movimiento-dialogo.js", "cuentas.js", "categorias.js", "pago-dialogo.js", "presupuesto-nuevo.js")
+ESCRIBEN_AVISO = ("movimiento-dialogo.js", "cuentas.js", "categorias.js", "pago-dialogo.js", "presupuesto-nuevo.js",
+                  "ordenar-otros.js")
 
 
 def _avisos_de_app_shell():
@@ -39,7 +40,7 @@ def test_las_claves_de_aviso_existen_en_app_shell():
         # irDespues("clave", ...), irDespues(x ? "clave" : "clave") y las del presupuesto.
         for llamada in re.findall(r"irDespues\(([^;]*?)\)", js) + re.findall(r'"aviso", ([^;]*?)\);', js):
             usadas |= set(re.findall(r'"([a-z]+-[a-z-]+)"', llamada))
-    assert len(usadas) == 11
+    assert len(usadas) == 12
     assert usadas <= avisos.keys(), usadas - avisos.keys()
 
 

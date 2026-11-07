@@ -1326,6 +1326,112 @@
   letter-spacing: var(--tracking-caption);
 }
 
+/* ---------- Ordenar Otros (Categorías) ---------- */
+.orden__panel {
+  width: min(420px, calc(100vw - 32px));
+}
+
+.orden__cuerpo {
+  display: grid;
+  gap: var(--space-8);
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.orden__cuerpo:empty {
+  display: none;
+}
+
+.orden__grupo {
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  background: var(--color-canvas);
+  border-radius: var(--radius-inner);
+}
+
+.orden__cabeza {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.orden__destino {
+  min-width: 0;
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+}
+
+.orden__nueva {
+  margin-left: 6px;
+  padding: 1px 7px;
+  background: var(--color-text);
+  color: var(--color-surface);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption);
+  vertical-align: 1px;
+}
+
+.orden__conteo {
+  color: var(--color-text-secondary);
+}
+
+.orden__aceptar {
+  flex: none;
+  height: 32px;
+  padding: 0 var(--space-12);
+  font-size: var(--text-caption);
+}
+
+.orden__aceptado {
+  flex: none;
+  color: var(--color-income);
+  font-size: var(--text-caption);
+}
+
+.orden__lista {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orden__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: 2px 0;
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+  cursor: pointer;
+}
+
+.orden__item input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-text);
+}
+
+.orden__item:has(input:not(:checked)) span {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+.is-aceptado .orden__item {
+  cursor: default;
+}
+
+.orden__resto {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  letter-spacing: var(--tracking-caption);
+}
+
 .analisis__reintentar {
   justify-self: start;
 }

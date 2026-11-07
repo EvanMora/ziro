@@ -193,6 +193,13 @@
   }
 }
 
+/* Al llegar deslizando desde otra sección las barras ya están crecidas (ver app.css, "Cambio de
+   sección"). */
+.vt-seccion .capsule,
+.vt-seccion .cats__bar {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .capsule,
   .cats__bar {

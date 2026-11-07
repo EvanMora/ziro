@@ -4,10 +4,20 @@
  */
 
 /* ---------- Cambio de sección ----------
- * Cada sección es una página propia. El navegador anima el paso entre ellas (View Transitions):
- * la barra lateral se queda quieta, la píldora de la sección activa se desliza y el contenido
- * viejo se desvanece mientras el nuevo entra con sus bloques escalonados.
- * En navegadores sin soporte (Firefox) la página cambia sin animación.
+ * Cada sección es una página propia. El navegador anima el paso entre ellas (View Transitions)
+ * como un feed: si la sección de destino está más abajo en el menú, el contenido viejo sale
+ * entero hacia arriba y el nuevo entra desde abajo, pegados; si está más arriba, al revés. Las
+ * barras lateral y superior se quedan quietas y la píldora de la sección activa se desliza.
+ * El script en línea de base_app.html pone la dirección como tipo de la transición
+ * (hacia-abajo / hacia-arriba) y la salta cuando no hay dirección (cambiar de mes, un filtro,
+ * recargar tras guardar). En navegadores sin soporte (Firefox) la página cambia sin animación.
+ *
+ * El contenido es la captura de la raíz: la ventana tal como se ve, sin las barras (que tienen
+ * nombre propio y van encima). Así sale la vista vieja desde donde estaba el scroll y la nueva
+ * desde arriba, y las dos miden lo mismo: con translateY(±100%) quedan pegadas sin hueco.
+ * Solo se anima transform, sin opacidad: lo mueve la GPU sin repintar, y sin fundido no queda
+ * el instante vacío entre las dos que se veía como un parpadeo. Mientras se desliza no se anima
+ * nada más (clase vt-seccion: los bloques y las barras de cada sección entran ya puestos).
  */
 @view-transition {
   navigation: auto;
@@ -21,39 +31,94 @@
   view-transition-name: indicador;
 }
 
-.main {
-  view-transition-name: contenido;
+.topbar {
+  view-transition-name: barra-superior;
 }
 
+/* La píldora es una captura aparte encima de la barra lateral: pintada normal, su gris tapaba el
+   nombre de la sección mientras se desliza. Multiplicada, el texto de debajo se ve a través (sobre
+   el blanco de la barra queda su mismo gris). Es un área pequeña: mezclarla cuesta poco. */
 ::view-transition-group(indicador) {
   animation-duration: 320ms;
   animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  mix-blend-mode: multiply;
 }
 
-/* Fundido en serie: el contenido viejo sale en 90 ms y el nuevo entra justo después, así nunca
-   se ven los dos a la vez. Si se solapan, durante la salida quedan restos de la página anterior
-   encima de la nueva. La opacidad va en la captura y no en los bloques (view-in solo mueve):
-   al cargar una página directamente el contenido se ve desde el primer pintado y cuenta para el
-   LCP. */
-::view-transition-old(contenido) {
-  animation: vt-fuera 90ms cubic-bezier(0, 0, 0.2, 1) both;
+/* Las barras no se mueven ni se funden: se muestra la nueva desde el primer frame (cambia el
+   título de la barra superior, como en una página normal). */
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-group(root),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-group(barra),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-group(barra-superior),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-new(barra),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-new(barra-superior) {
+  animation: none;
 }
 
-::view-transition-new(contenido) {
-  animation: vt-dentro 210ms cubic-bezier(0, 0, 0.2, 1) 90ms both;
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-old(barra),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-old(barra-superior) {
+  display: none;
 }
 
-@keyframes vt-dentro {
-  from {
-    opacity: 0;
-  }
+/* Las dos capturas no se mezclan (no se solapan nunca): sin plus-lighter ni capa aislada que
+   obligue a componerlas aparte en cada frame. */
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-image-pair(root) {
+  isolation: auto;
 }
 
-@keyframes vt-fuera {
+/* Misma duración y curva para las dos: si una fuera más rápida se abriría un hueco o se montarían. */
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-old(root),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-new(root) {
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-emphasized);
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
+}
+
+:root:active-view-transition-type(hacia-abajo)::view-transition-old(root) {
+  animation-name: vt-sale-arriba;
+}
+
+:root:active-view-transition-type(hacia-abajo)::view-transition-new(root) {
+  animation-name: vt-entra-abajo;
+}
+
+:root:active-view-transition-type(hacia-arriba)::view-transition-old(root) {
+  animation-name: vt-sale-abajo;
+}
+
+:root:active-view-transition-type(hacia-arriba)::view-transition-new(root) {
+  animation-name: vt-entra-arriba;
+}
+
+@keyframes vt-sale-arriba {
   to {
-    opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-100%);
   }
+}
+
+@keyframes vt-entra-abajo {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes vt-sale-abajo {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes vt-entra-arriba {
+  from {
+    transform: translateY(-100%);
+  }
+}
+
+/* Celular: si se elige una sección con el cajón abierto, el script lo cierra justo antes de la
+   captura; sin transición, para que la captura salga ya sin el cajón ni el velo. */
+.vt-cierra-cajon .sidebar,
+.vt-cierra-cajon .scrim {
+  transition: none;
 }
 
 /* ---------- Estructura ---------- */
@@ -77,11 +142,20 @@
  * mismo documento y pone la clase vt-barra en <html> mientras dura, así que aquí solo se animan
  * capturas: la barra se ensancha o se estrecha recortando su contenido y el contenido se desliza
  * a su sitio fundiéndose de su forma vieja a la nueva. Las reglas de arriba (cambio de sección)
- * no cambian.
+ * solo aplican con sus tipos (hacia-abajo / hacia-arriba), que esta transición no lleva.
  */
 
 /* Fuera de la barra y el contenido solo queda el fondo: no hace falta capturarlo y fundirlo. */
 :root.vt-barra {
+  view-transition-name: none;
+}
+
+/* Aquí el contenido es .main entero, con la barra superior dentro (cambia de ancho con él). */
+.vt-barra .main {
+  view-transition-name: contenido;
+}
+
+.vt-barra .topbar {
   view-transition-name: none;
 }
 
@@ -456,6 +530,12 @@
 .view > * {
   animation: view-in var(--duration-slow) var(--ease-emphasized) both;
   animation-delay: calc(var(--i, 0) * 50ms);
+}
+
+/* Al llegar deslizando desde otra sección (ver "Cambio de sección") los bloques ya están puestos:
+   animarlos sobre el deslizamiento repintaría la captura nueva en cada frame. */
+.vt-seccion .view > * {
+  animation: none;
 }
 
 @keyframes view-in {

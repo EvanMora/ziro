@@ -30,18 +30,5 @@ def test_barras_crecen_sin_espera_y_en_400ms_o_menos():
     assert "200ms" not in relleno
 
 
-def _ms(valor: str) -> float:
-    return float(valor[:-2]) if valor.endswith("ms") else float(valor[:-1]) * 1000
-
-
-def test_el_cambio_de_seccion_no_superpone_las_dos_paginas():
-    """Los bloques ya no arrancan con opacidad 0, así que la captura nueva tiene que entrar
-    cuando la vieja terminó de salir. Si no, se ven restos de la página anterior encima."""
-    app_css = (CSS / "app.css").read_text()
-    vieja = _bloque(app_css, "::view-transition-old(contenido) {")
-    nueva = _bloque(app_css, "::view-transition-new(contenido) {")
-    salida = re.search(r"vt-fuera\s+(\d+m?s)", vieja)
-    entrada = re.search(r"vt-dentro\s+\d+m?s\s+\S+(?:\([^)]*\))?\s+(\d+m?s)", nueva)
-    assert salida and entrada, "faltan las animaciones vt-fuera / vt-dentro"
-    assert _ms(entrada.group(1)) >= _ms(salida.group(1))
-    assert "opacity: 0" in _bloque(app_css, "@keyframes vt-dentro {")
+# El cambio de sección ya no es un fundido en serie sino un deslizamiento sin opacidad:
+# lo comprueba test_desplazamiento_secciones.py (test_la_vieja_y_la_nueva_van_pegadas).

@@ -20,11 +20,12 @@ def test_el_salto_de_la_transicion_va_en_linea_en_el_head():
         assert "skipTransition()" in head, ruta
 
 
-def test_solo_se_ignoran_anio_y_mes():
+def test_cambiar_de_mes_es_la_misma_seccion_y_no_anima():
+    # La sección sale del primer tramo de la ruta: ?anio= y ?mes= (o un filtro) no la cambian, así
+    # que no hay dirección y se salta la transición (ver test_desplazamiento_secciones.py).
     head = _head("/resumen")
-    assert 'searchParams.delete("anio")' in head
-    assert 'searchParams.delete("mes")' in head
-    assert "x.pathname !== y.pathname" in head
+    assert 'u.pathname.split("/")[1]' in head
+    assert "origen === destino" in head
 
 
 def test_la_transicion_entre_secciones_sigue_activa():

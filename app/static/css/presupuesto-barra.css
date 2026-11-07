@@ -106,6 +106,12 @@ a.pres-barra:hover .pres-barra__ver {
   }
 }
 
+/* Al llegar deslizando desde otra sección la barra ya está llena (ver app.css, "Cambio de
+   sección"). */
+.vt-seccion .pres-pista__relleno {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pres-pista__relleno {
     animation: none;

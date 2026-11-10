@@ -1,12 +1,26 @@
-"""Auth: inicio y cierre de sesión. El inicio con Google (Authlib) es la otra rama de este router:
-    /auth/google/login y /auth/google/callback, que guardan el id en la misma sesión."""
+"""Auth: registro, inicio y cierre de sesión. El inicio con Google (Authlib) es la otra rama de este
+router: /auth/google/login y /auth/google/callback, que guardan el id en la misma sesión."""
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from app.schemas.auth import LoginEntrada
+from app.schemas.auth import LoginEntrada, RegistroEntrada
 from app.services import usuarios
+from app.services.comun import ErrorValidacion
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+
+@router.post("/registro")
+def registrar(payload: RegistroEntrada, request: Request) -> JSONResponse:
+    """Crea el usuario en la base de datos (alta con registro) y abre su sesión."""
+    try:
+        usuario = usuarios.crear(nombre=payload.nombre, email=payload.email, password=payload.password)
+    except ErrorValidacion as error:
+        # El correo ya está registrado: el error llega por campo para que el formulario lo muestre
+        # en el campo del email.
+        return JSONResponse(status_code=422, content={"errores": error.errores})
+    request.session["usuario_id"] = usuario.id
+    return JSONResponse(status_code=201, content=usuarios.a_sesion(usuario).model_dump(mode="json"))
 
 
 @router.post("/login")

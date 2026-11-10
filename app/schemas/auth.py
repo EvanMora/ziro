@@ -1,4 +1,4 @@
-"""Contrato del login: lo que entra por el formulario y lo que devuelve la sesión."""
+"""Contrato del auth: lo que entra por el formulario (login y registro) y lo que devuelve la sesión."""
 from pydantic import BaseModel
 
 
@@ -7,6 +7,14 @@ class LoginEntrada(BaseModel):
     email: str
     password: str
     recordar: bool = False
+
+
+class RegistroEntrada(BaseModel):
+    """Cuerpo del POST /api/v1/auth/registro: alta con correo y contraseña."""
+
+    nombre: str = ""
+    email: str
+    password: str
 
 
 class UsuarioSesion(BaseModel):

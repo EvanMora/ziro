@@ -118,12 +118,45 @@ def test_crear_dinero_y_tarjeta():
         ({"tipo": "tarjeta", "dia_pago": 0}, {"dia_pago": "Elige un día entre 1 y 31."}),
         ({"tipo": "tarjeta", "dia_pago": 32}, {"dia_pago": "Elige un día entre 1 y 31."}),
         ({"tipo": "tarjeta", "dia_pago": None}, {"dia_pago": "Elige un día entre 1 y 31."}),
+        ({"saldo": Decimal("1000000000000")}, {"saldo": "El monto es demasiado grande."}),
+        ({"tipo": "tarjeta", "cupo": Decimal("1000000000000")}, {"cupo": "El monto es demasiado grande."}),
+        ({"tipo": "tarjeta", "cupo": Decimal("0.001")}, {"cupo": "Escribe un cupo mayor que 0."}),
     ],
 )
 def test_validaciones(cambios, esperado):
-    tipo = cambios.pop("tipo", "billetera")
-    base = entrada(tipo=tipo)
-    assert errores(cuentas.crear, U, base.model_copy(update=cambios)) == esperado
+    assert errores(cuentas.crear, U, _entrada_con(cambios)) == esperado
+
+
+@pytest.mark.parametrize(
+    "cambios",
+    [
+        {"nombre": "x" * 40},
+        {"saldo": Decimal(0)},
+        {"saldo": Decimal("999999999999.99")},
+        {"tipo": "tarjeta", "cupo": Decimal("0.01")},
+        {"tipo": "tarjeta", "cupo": Decimal(1)},
+        {"tipo": "tarjeta", "dia_pago": 1},
+        {"tipo": "tarjeta", "dia_pago": 31},
+    ],
+)
+def test_valores_en_el_limite_se_aceptan(cambios):
+    e = _entrada_con(cambios)
+    assert cuentas.crear(U, e).tipo == e.tipo
+
+
+def _entrada_con(cambios: dict) -> CuentaEntrada:
+    """Entrada base del tipo pedido con los cambios aplicados. No modifica `cambios`: es el dict
+    del parametrize y pytest lo reusa si la suite corre más de una vez en el mismo proceso."""
+    tipo = cambios.get("tipo", "billetera")
+    return entrada(tipo=tipo).model_copy(update={k: v for k, v in cambios.items() if k != "tipo"})
+
+
+@pytest.mark.parametrize(
+    ("hoy", "esperado"),
+    [(date(2027, 1, 10), date(2026, 12, 1)), (date(2026, 11, 15), date(2026, 10, 1))],
+)
+def test_mes_anterior_cruza_el_anio_en_enero(hoy, esperado):
+    assert cuentas._mes_anterior(hoy) == esperado
 
 
 def test_maximo_de_cuentas(monkeypatch):

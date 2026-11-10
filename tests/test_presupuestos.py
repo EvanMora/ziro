@@ -1,4 +1,5 @@
 """Presupuestos: lo esencial del servicio, la API y las pantallas."""
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -32,6 +33,14 @@ def test_un_mes_sin_presupuesto_no_esta_creado():
     assert not p.creado
     assert p.total == 0
     assert len(p.dias) >= 28
+
+
+@pytest.mark.parametrize(
+    ("hoy", "esperado"),
+    [(date(2027, 1, 10), (2026, 12)), (date(2026, 11, 15), (2026, 10))],
+)
+def test_mes_anterior_cruza_el_anio_en_enero(hoy, esperado):
+    assert presupuestos._mes_anterior(hoy) == esperado
 
 
 def test_el_mes_anterior_trae_el_ejemplo_con_sus_estados():

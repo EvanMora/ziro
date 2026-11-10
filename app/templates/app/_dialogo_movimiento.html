@@ -69,6 +69,20 @@
           </select>
           <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5 9 4.5"/></svg>
         </div>
+        {% if ia_disponible %}
+        {# Categoría que propone el asistente cuando ninguna encaja: va como opción "(nueva)" del select
+           y se crea solo al guardar el movimiento (movimiento-dialogo.js, "Categoría nueva"). #}
+        <div class="categoria-nueva" data-categoria-nueva hidden>
+          <p class="field__message categoria-nueva__texto">
+            <svg class="ia-icono" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z"/></svg>
+            Sugerida por el asistente. Se crea al guardar.
+            <button class="categoria-nueva__cambiar" type="button" data-categoria-nueva-cambiar>Cambiar nombre</button>
+          </p>
+          <label class="visually-hidden" for="mov-categoria-nueva">Nombre de la categoría nueva</label>
+          <input class="ia-input categoria-nueva__input" id="mov-categoria-nueva" type="text" maxlength="40"
+                 autocomplete="off" data-categoria-nueva-nombre hidden>
+        </div>
+        {% endif %}
         <p class="field__message field__message--error" id="categoria_id-error" hidden></p>
       </div>
 

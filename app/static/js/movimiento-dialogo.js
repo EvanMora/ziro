@@ -112,9 +112,87 @@
         opcion.disabled = otra;
       }
       if (campos.categoria_id.selectedOptions[0]?.disabled) campos.categoria_id.value = "";
+      mostrarCategoriaNueva();
     }
 
     for (const radio of form.elements.tipo) radio.addEventListener("change", filtrarCategorias);
+
+    // ---------- Categoría nueva que propone el asistente ----------
+    // Cuando ninguna categoría encaja, el asistente sugiere un nombre (services/ia.py). Va como una
+    // opción más del select, ya elegida, con value="nueva"; se crea con la API de categorías solo al
+    // guardar el movimiento (ver el submit). Si el movimiento no se guarda, se borra.
+    const NUEVA = "nueva";
+    const nueva = dialog.querySelector("[data-categoria-nueva]");
+    const nuevaNombre = nueva?.querySelector("[data-categoria-nueva-nombre]");
+    let opcionNueva = null;
+
+    function quitarCategoriaNueva() {
+      opcionNueva?.remove();
+      opcionNueva = null;
+      if (nueva) nueva.hidden = true;
+    }
+
+    function ponerCategoriaNueva(nombre, tipo) {
+      quitarCategoriaNueva();
+      if (!nueva) return;
+      opcionNueva = new Option("", NUEVA);
+      opcionNueva.dataset.tipo = tipo;
+      campos.categoria_id.add(opcionNueva, 1); // justo después de "Elige una"
+      nombrarCategoriaNueva(nombre);
+      nuevaNombre.hidden = true;
+      campos.categoria_id.value = NUEVA;
+      mostrarCategoriaNueva();
+    }
+
+    function nombrarCategoriaNueva(nombre) {
+      opcionNueva.dataset.nombre = nombre;
+      opcionNueva.text = `${nombre || "Sin nombre"} (nueva)`;
+      nuevaNombre.value = nombre;
+    }
+
+    // El aviso solo se ve mientras la nueva es la elegida.
+    function mostrarCategoriaNueva() {
+      if (nueva) nueva.hidden = !opcionNueva || campos.categoria_id.value !== NUEVA;
+    }
+
+    if (nueva) {
+      campos.categoria_id.addEventListener("change", mostrarCategoriaNueva);
+      nueva.querySelector("[data-categoria-nueva-cambiar]").addEventListener("click", () => {
+        nuevaNombre.hidden = false;
+        nuevaNombre.focus();
+        nuevaNombre.select();
+      });
+      nuevaNombre.addEventListener("input", () => {
+        nombrarCategoriaNueva(nuevaNombre.value.trim());
+        if (campos.categoria_id.hasAttribute("aria-invalid")) errorDeCampo("categoria_id", null);
+      });
+      nuevaNombre.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.isComposing) return;
+        event.preventDefault(); // Enter cierra el campo del nombre; no envía el formulario
+        nuevaNombre.hidden = true;
+        campos.categoria_id.focus();
+      });
+    }
+
+    // Crea la categoría nueva si es la elegida. Devuelve su id, el id elegido si no es la nueva, o
+    // null si no se pudo crear (el error ya se mostró).
+    async function categoriaParaGuardar() {
+      if (campos.categoria_id.value !== NUEVA) return { id: Number(campos.categoria_id.value), creada: false };
+      const respuesta = await pedir("/api/v1/categorias", {
+        method: "POST",
+        body: JSON.stringify({ nombre: opcionNueva.dataset.nombre, tipo: tipoElegido() }),
+      });
+      const datos = await respuesta.json().catch(() => ({}));
+      if (respuesta.ok) return { id: datos.id, creada: true };
+      const errores = datos.errores ?? {};
+      const mensaje = errores.nombre ?? errores.general ?? "No se pudo crear la categoría. Inténtalo de nuevo.";
+      if (errores.nombre) {
+        nuevaNombre.hidden = false;
+        nuevaNombre.focus();
+      }
+      errorDeCampo("categoria_id", mensaje);
+      return null;
+    }
 
     // ---------- Errores (mismo comportamiento que el login) ----------
     function errorDeCampo(nombre, mensaje) {
@@ -149,6 +227,9 @@
       const errores = {};
       if (!(Number(montoAEnviar()) > 0)) errores.monto = "Escribe un monto mayor que 0.";
       if (!campos.categoria_id.value) errores.categoria_id = "Elige una categoría.";
+      else if (campos.categoria_id.value === NUEVA && !opcionNueva.dataset.nombre) {
+        errores.categoria_id = "Escribe un nombre para la categoría nueva.";
+      }
       if (!campos.cuenta_id.value) errores.cuenta_id = "Elige una cuenta.";
       if (!campos.fecha.value) errores.fecha = "Escribe una fecha válida.";
       else if (campos.fecha.value > hoy) errores.fecha = "La fecha no puede ser futura.";
@@ -177,6 +258,7 @@
       titulo.textContent = movimiento ? "Editar movimiento" : "Nuevo movimiento";
       eliminar.hidden = !movimiento;
       form.elements.tipo.value = movimiento?.tipo ?? "gasto";
+      quitarCategoriaNueva();
       filtrarCategorias();
       campos.monto.value = movimiento ? miles(digitosMonto(movimiento.monto)) : "";
       montoExacto = movimiento && String(movimiento.monto).includes(".") ? String(movimiento.monto) : null;
@@ -254,6 +336,8 @@
         montoExacto = null;
       }
       if (s.categoria_id != null) campos.categoria_id.value = String(s.categoria_id);
+      if (s.categoria_nueva) ponerCategoriaNueva(s.categoria_nueva, s.tipo);
+      else quitarCategoriaNueva();
       if (s.cuenta_id != null) campos.cuenta_id.value = String(s.cuenta_id);
       if (s.fecha) campos.fecha.value = s.fecha;
       if (s.descripcion) campos.descripcion.value = s.descripcion;
@@ -375,22 +459,32 @@
         return;
       }
 
-      const cuerpo = {
-        tipo: tipoElegido(),
-        monto: montoAEnviar(),
-        categoria_id: Number(campos.categoria_id.value),
-        cuenta_id: Number(campos.cuenta_id.value),
-        fecha: campos.fecha.value,
-        descripcion: campos.descripcion.value.trim(),
-      };
-
       ocupar(guardar, true);
+      let categoria = null;
       try {
+        categoria = await categoriaParaGuardar();
+        if (!categoria) {
+          ocupar(guardar, false);
+          return;
+        }
+        const cuerpo = {
+          tipo: tipoElegido(),
+          monto: montoAEnviar(),
+          categoria_id: categoria.id,
+          cuenta_id: Number(campos.cuenta_id.value),
+          fecha: campos.fecha.value,
+          descripcion: campos.descripcion.value.trim(),
+        };
         const respuesta = await pedir(actual ? `${API}/${actual.id}` : API, {
           method: actual ? "PUT" : "POST",
           body: JSON.stringify(cuerpo),
         });
         const datos = await respuesta.json().catch(() => ({}));
+        if (!respuesta.ok && categoria.creada) {
+          // El movimiento no se guardó: la categoría recién creada no se queda suelta. Sigue
+          // elegida como "(nueva)" para el siguiente intento.
+          pedir(`/api/v1/categorias/${categoria.id}`, { method: "DELETE" }).catch(() => {});
+        }
         if (respuesta.ok) {
           guardar.classList.remove("is-loading");
           guardar.classList.add("is-success");
@@ -403,6 +497,7 @@
         else if (respuesta.status === 404) mostrarAlerta(alerta, "Este movimiento ya no existe. Cierra y recarga la página.");
         else mostrarAlerta(alerta, "No se pudo guardar. Inténtalo de nuevo.");
       } catch {
+        if (categoria?.creada) pedir(`/api/v1/categorias/${categoria.id}`, { method: "DELETE" }).catch(() => {});
         ocupar(guardar, false);
         mostrarAlerta(alerta, "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.");
       }

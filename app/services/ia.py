@@ -1,6 +1,7 @@
 """Asistente con Gemini. Cada sección usa la IA para una cosa distinta:
 
-- Movimientos — interpretar(): frase → movimiento sugerido para el diálogo "Nuevo movimiento".
+- Movimientos — interpretar(): frase → movimiento sugerido para el diálogo "Nuevo movimiento". Si
+  ninguna categoría encaja, también propone el nombre de una nueva (_categoria_nueva).
 - Resumen — analizar_mes(): cifras del mes → 1 a 3 observaciones y un consejo.
 - Cuentas: sin IA en su pantalla, a propósito. Saldos, cupos, deudas y pagos de tarjeta son los
   datos más sensibles de la app y nunca salen hacia Gemini. Para registrar con una frase, Gemini
@@ -42,7 +43,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.ia import MAX_TEXTO, AnalisisMes, MovimientoSugerido
+from app.services import categorias as categorias_servicio
 from app.services import movimientos as movimientos_servicio
+from app.services.comun import limpiar_texto, normalizar
 from app.web.formato import dinero, nombre_mes, porcentaje
 
 log = logging.getLogger(__name__)
@@ -52,6 +55,7 @@ TIEMPO_MAXIMO_MS = 30_000  # Gemini suele tardar 1-3 s, pero en horas de mucha d
 LIMITE_POR_MINUTO = 10
 LIMITE_POR_DIA = 200
 
+_OTROS = {"gasto": "Otros gastos", "ingreso": "Otros ingresos"}  # a donde cae lo que no encaja
 _DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 
 _INSTRUCCIONES = """\
@@ -65,6 +69,9 @@ El usuario describe en una frase un ingreso o un gasto. Extrae sus datos con est
   Si no dice un monto, null.
 - categoria_id: el id de la categoría de la lista que mejor encaje y que sea del mismo tipo. Si
   ninguna encaja, la de "Otros" de ese tipo.
+- categoria_nueva: solo si ninguna categoría de la lista encaja y la frase deja claro qué fue, un
+  nombre corto (1 a 3 palabras, con mayúscula inicial) para una categoría nueva de ese tipo que sí
+  encaje (p. ej. "Mascotas", "Suscripciones", "Freelance"). Si alguna encaja o no está claro, null.
 - cuenta_id: el id de la cuenta de la lista si la menciona o se deduce con claridad ("en efectivo",
   "con Nequi" → billetera digital). Si no, null.
 - fecha: en formato AAAA-MM-DD. Interpreta "hoy", "ayer", "el lunes", "el 3" respecto a la fecha
@@ -137,6 +144,8 @@ class _RespuestaGemini(BaseModel):
     cuenta_id: int | None
     fecha: str | None = Field(description="AAAA-MM-DD")
     descripcion: str
+    categoria_nueva: str | None = Field(
+        default=None, description="Nombre para una categoría nueva, solo si ninguna de la lista encaja.")
 
 
 def _api_key() -> str | None:
@@ -225,8 +234,36 @@ def _limpiar(usuario_id: int, r: _RespuestaGemini) -> MovimientoSugerido:
 
     descripcion = " ".join(r.descripcion.split())[: movimientos_servicio.MAX_DESCRIPCION]
 
+    categoria_id, categoria_nueva = _categoria_nueva(usuario_id, r, categoria_id, categorias)
+
     return MovimientoSugerido(tipo=r.tipo, monto=monto, categoria_id=categoria_id, cuenta_id=cuenta_id,
-                              fecha=fecha, descripcion=descripcion)
+                              fecha=fecha, descripcion=descripcion, categoria_nueva=categoria_nueva)
+
+
+def _clave(nombre: str) -> str:
+    """Para comparar nombres de categoría: sin tildes, mayúsculas ni plural ("Mascotas" = "mascota")."""
+    return normalizar(nombre).removesuffix("s")
+
+
+def _categoria_nueva(usuario_id: int, r: _RespuestaGemini, categoria_id: int | None,
+                     categorias) -> tuple[int | None, str | None]:
+    """Revisa la categoría nueva que propone Gemini. Devuelve (categoria_id, categoria_nueva):
+    - Solo se propone si Gemini cayó en "Otros" (o en nada): si eligió una que encaja, se queda esa.
+    - Si ya hay una del mismo tipo con ese nombre (sin tildes, mayúsculas ni plural), se usa esa.
+    - Un nombre vacío, demasiado largo o que vuelva a ser "Otros", o un usuario sin cupo para más
+      categorías propias, no propone nada. Nunca se crea aquí: la crea el diálogo al guardar."""
+    nombre = limpiar_texto(r.categoria_nueva or "")
+    elegida = next((c for c in categorias if c.id == categoria_id), None)
+    if not nombre or (elegida is not None and normalizar(elegida.nombre) != normalizar(_OTROS[r.tipo])):
+        return categoria_id, None
+    existente = next((c for c in categorias if c.tipo == r.tipo and _clave(c.nombre) == _clave(nombre)), None)
+    if existente is not None:
+        return existente.id, None
+    propias = sum(1 for c in categorias_servicio.listar(usuario_id) if not c.predeterminada)
+    if (len(nombre) > categorias_servicio.MAX_NOMBRE or normalizar(nombre).startswith("otro")
+            or propias >= categorias_servicio.MAX_PROPIAS):
+        return categoria_id, None
+    return categoria_id, nombre
 
 
 def interpretar(usuario_id: int, texto: str) -> MovimientoSugerido:

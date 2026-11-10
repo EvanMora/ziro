@@ -1027,6 +1027,43 @@
   color: var(--color-text-secondary);
 }
 
+/* Categoría nueva que propone el asistente (debajo del select de categoría). */
+.categoria-nueva {
+  display: grid;
+  gap: var(--space-8);
+  margin-top: var(--space-8);
+}
+
+.categoria-nueva__texto {
+  color: var(--color-text-secondary);
+}
+
+.categoria-nueva__texto .ia-icono {
+  width: 11px;
+  height: 11px;
+  margin-right: 2px;
+  vertical-align: -1px;
+}
+
+.categoria-nueva__cambiar {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.categoria-nueva__cambiar:hover {
+  text-decoration: underline;
+}
+
+.categoria-nueva__input {
+  flex: none;
+  width: 100%;
+  height: 36px;
+}
+
 .dialog__pair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

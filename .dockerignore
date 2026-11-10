@@ -1,0 +1,40 @@
+# Control de versiones y CI
+.git
+.gitignore
+.github
+
+# Python: caches y entornos virtuales locales
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Pruebas y cobertura (la imagen solo va para correr la API)
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+
+# Documentación y borradores
+docs/
+.superpowers/
+
+# Variables de entorno y secretos (la config se pasa por variables de entorno al contenedor)
+.env
+.env.*
+
+# Base de datos SQLite locales
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Editores e IDEs
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log

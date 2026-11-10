@@ -16,9 +16,14 @@ from app.services import ia as ia_servicio
 from app.services import movimientos as movimientos_servicio
 from app.services import presupuestos as presupuestos_servicio
 from app.services.dashboard import obtener_resumen
-from app.web import formato
-from app.web.presentacion import datos_pago, vista_categorias, vista_cuentas, vista_movimientos, vista_resumen
-from app.web import presupuestos_vista
+from app.web import formato, presupuestos_vista
+from app.web.presentacion import (
+    datos_pago,
+    vista_categorias,
+    vista_cuentas,
+    vista_movimientos,
+    vista_resumen,
+)
 from app.web.preview import build_preview
 from app.web.sesion import USUARIO_DEMO
 

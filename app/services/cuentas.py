@@ -28,7 +28,14 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from app.schemas.cuentas import Cuenta, CuentaConSaldo, CuentaEntrada, Pago, PagoEntrada, PanelCuentas
+from app.schemas.cuentas import (
+    Cuenta,
+    CuentaConSaldo,
+    CuentaEntrada,
+    Pago,
+    PagoEntrada,
+    PanelCuentas,
+)
 from app.schemas.movimientos import CuentaRef, FiltrosMovimientos, Movimiento
 from app.services.comun import ErrorValidacion, NoEncontrado, limpiar_texto, normalizar
 from app.web.formato import dinero

@@ -12,7 +12,11 @@ from decimal import Decimal
 
 from app.schemas.movimientos import ListaMovimientos
 from app.schemas.presupuestos import (
-    Estado, GastoDelDia, PresupuestoCategoria, PresupuestoDelMes, PresupuestoEntrada,
+    Estado,
+    GastoDelDia,
+    PresupuestoCategoria,
+    PresupuestoDelMes,
+    PresupuestoEntrada,
 )
 from app.services import categorias, movimientos
 from app.services.comun import ErrorValidacion

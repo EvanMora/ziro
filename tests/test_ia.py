@@ -5,8 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import ia
-from app.services import movimientos
+from app.services import ia, movimientos
 
 client = TestClient(app)
 URL = "/api/v1/ia/interpretar-movimiento"

@@ -19,9 +19,20 @@ funciones de aquí que necesitan los movimientos lo importan adentro para no for
 """
 from decimal import Decimal
 
-from app.schemas.categorias import Categoria, CategoriaDelMes, CategoriaEntrada, CategoriasDelMes
+from app.schemas.categorias import (
+    Categoria,
+    CategoriaDelMes,
+    CategoriaEntrada,
+    CategoriasDelMes,
+)
 from app.schemas.movimientos import CategoriaRef
-from app.services.comun import ErrorValidacion, NoEncontrado, NoPermitido, limpiar_texto, normalizar
+from app.services.comun import (
+    ErrorValidacion,
+    NoEncontrado,
+    NoPermitido,
+    limpiar_texto,
+    normalizar,
+)
 
 MAX_NOMBRE = 40
 MAX_PROPIAS = 50  # por usuario

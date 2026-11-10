@@ -5,7 +5,7 @@
  * - Dinero o Tarjeta de crédito: con Dinero se elige la clase; con Tarjeta, cupo y día de pago.
  * - Al editar, "Saldo de hoy" trae el saldo calculado y se puede corregir.
  * - Si la cuenta tiene movimientos, el grupo queda fijo y eliminarla pide a cuál pasarlos.
- * - Después de guardar o eliminar recarga con un aviso (lo muestra movimiento-dialogo.js) y
+ * - Después de guardar o eliminar recarga con ?aviso=<clave> (lo muestra app-shell.js) y
  *   ?guardado=<id> resalta la fila.
  * - "Registrar pago" de cada tarjeta lo maneja pago-dialogo.js.
  */
@@ -14,7 +14,6 @@
   if (!dialog) return;
 
   const API = "/api/v1/cuentas";
-  const AVISO = "aviso";
   const MAX_NOMBRE = 40;
   const ICONO_POR_CLASE = { ahorros: "banco", corriente: "banco", billetera: "celular", efectivo: "billetes", tarjeta: "tarjeta" };
   const reducido = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -204,11 +203,11 @@
   }
 
   // ---------- Guardar ----------
-  function irDespues(texto, id) {
-    sessionStorage.setItem(AVISO, texto);
+  function irDespues(aviso, id) {
     const url = new URL(location.href);
     url.searchParams.delete("guardado");
     if (id) url.searchParams.set("guardado", id);
+    url.searchParams.set("aviso", aviso);
     location.assign(url);
   }
 
@@ -269,7 +268,7 @@
       if (respuesta.ok) {
         guardar.classList.remove("is-loading");
         guardar.classList.add("is-success");
-        setTimeout(() => irDespues("Cuenta guardada", datos.id), 450);
+        setTimeout(() => irDespues("cuenta-guardada", datos.id), 450);
         return;
       }
       ocupar(guardar, false);
@@ -352,7 +351,7 @@
     ocupar(botonEliminar, true);
     try {
       const respuesta = await pedir(`${API}/${actual.id}${consulta}`, { method: "DELETE" });
-      if (respuesta.ok || respuesta.status === 404) return irDespues("Cuenta eliminada", null);
+      if (respuesta.ok || respuesta.status === 404) return irDespues("cuenta-eliminada", null);
       ocupar(botonEliminar, false);
       const datos = await respuesta.json().catch(() => ({}));
       if (respuesta.status === 422 && datos.errores) {

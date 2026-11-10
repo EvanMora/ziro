@@ -4,10 +4,20 @@
  */
 
 /* ---------- Cambio de sección ----------
- * Cada sección es una página propia. El navegador anima el paso entre ellas (View Transitions):
- * la barra lateral se queda quieta, la píldora de la sección activa se desliza y el contenido
- * viejo se desvanece mientras el nuevo entra con sus bloques escalonados.
- * En navegadores sin soporte (Firefox) la página cambia sin animación.
+ * Cada sección es una página propia. El navegador anima el paso entre ellas (View Transitions)
+ * como un feed: si la sección de destino está más abajo en el menú, el contenido viejo sale
+ * entero hacia arriba y el nuevo entra desde abajo, pegados; si está más arriba, al revés. Las
+ * barras lateral y superior se quedan quietas y la píldora de la sección activa se desliza.
+ * El script en línea de base_app.html pone la dirección como tipo de la transición
+ * (hacia-abajo / hacia-arriba) y la salta cuando no hay dirección (cambiar de mes, un filtro,
+ * recargar tras guardar). En navegadores sin soporte (Firefox) la página cambia sin animación.
+ *
+ * El contenido es la captura de la raíz: la ventana tal como se ve, sin las barras (que tienen
+ * nombre propio y van encima). Así sale la vista vieja desde donde estaba el scroll y la nueva
+ * desde arriba, y las dos miden lo mismo: con translateY(±100%) quedan pegadas sin hueco.
+ * Solo se anima transform, sin opacidad: lo mueve la GPU sin repintar, y sin fundido no queda
+ * el instante vacío entre las dos que se veía como un parpadeo. Mientras se desliza no se anima
+ * nada más (clase vt-seccion: los bloques y las barras de cada sección entran ya puestos).
  */
 @view-transition {
   navigation: auto;
@@ -21,29 +31,94 @@
   view-transition-name: indicador;
 }
 
-.main {
-  view-transition-name: contenido;
+.topbar {
+  view-transition-name: barra-superior;
 }
 
+/* La píldora es una captura aparte encima de la barra lateral: pintada normal, su gris tapaba el
+   nombre de la sección mientras se desliza. Multiplicada, el texto de debajo se ve a través (sobre
+   el blanco de la barra queda su mismo gris). Es un área pequeña: mezclarla cuesta poco. */
 ::view-transition-group(indicador) {
   animation-duration: 320ms;
   animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  mix-blend-mode: multiply;
 }
 
-::view-transition-old(contenido) {
-  animation: vt-fuera 120ms cubic-bezier(0, 0, 0.2, 1) both;
-}
-
-/* El contenido nuevo aparece de una vez; sus bloques hacen su propia entrada (view-in). */
-::view-transition-new(contenido) {
+/* Las barras no se mueven ni se funden: se muestra la nueva desde el primer frame (cambia el
+   título de la barra superior, como en una página normal). */
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-group(root),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-group(barra),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-group(barra-superior),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-new(barra),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-new(barra-superior) {
   animation: none;
 }
 
-@keyframes vt-fuera {
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-old(barra),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-old(barra-superior) {
+  display: none;
+}
+
+/* Las dos capturas no se mezclan (no se solapan nunca): sin plus-lighter ni capa aislada que
+   obligue a componerlas aparte en cada frame. */
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-image-pair(root) {
+  isolation: auto;
+}
+
+/* Misma duración y curva para las dos: si una fuera más rápida se abriría un hueco o se montarían. */
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-old(root),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-new(root) {
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-emphasized);
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
+}
+
+:root:active-view-transition-type(hacia-abajo)::view-transition-old(root) {
+  animation-name: vt-sale-arriba;
+}
+
+:root:active-view-transition-type(hacia-abajo)::view-transition-new(root) {
+  animation-name: vt-entra-abajo;
+}
+
+:root:active-view-transition-type(hacia-arriba)::view-transition-old(root) {
+  animation-name: vt-sale-abajo;
+}
+
+:root:active-view-transition-type(hacia-arriba)::view-transition-new(root) {
+  animation-name: vt-entra-arriba;
+}
+
+@keyframes vt-sale-arriba {
   to {
-    opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-100%);
   }
+}
+
+@keyframes vt-entra-abajo {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes vt-sale-abajo {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes vt-entra-arriba {
+  from {
+    transform: translateY(-100%);
+  }
+}
+
+/* Celular: si se elige una sección con el cajón abierto, el script lo cierra justo antes de la
+   captura; sin transición, para que la captura salga ya sin el cajón ni el velo. */
+.vt-cierra-cajon .sidebar,
+.vt-cierra-cajon .scrim {
+  transition: none;
 }
 
 /* ---------- Estructura ---------- */
@@ -55,11 +130,87 @@
   min-height: 100dvh;
   font-size: var(--text-small);
   letter-spacing: var(--tracking-small);
-  transition: grid-template-columns var(--duration-slow) var(--ease-emphasized);
 }
 
 .shell.is-collapsed {
   --sb-w: 76px;
+}
+
+/* ---------- Contraer o expandir la barra lateral ----------
+ * Las columnas cambian de golpe: animar grid-template-columns recalculaba el layout y repintaba
+ * todo el contenido en cada frame. app-shell.js hace el cambio dentro de una View Transition del
+ * mismo documento y pone la clase vt-barra en <html> mientras dura, así que aquí solo se animan
+ * capturas: la barra se ensancha o se estrecha recortando su contenido y el contenido se desliza
+ * a su sitio fundiéndose de su forma vieja a la nueva. Las reglas de arriba (cambio de sección)
+ * solo aplican con sus tipos (hacia-abajo / hacia-arriba), que esta transición no lleva.
+ */
+
+/* Fuera de la barra y el contenido solo queda el fondo: no hace falta capturarlo y fundirlo. */
+:root.vt-barra {
+  view-transition-name: none;
+}
+
+/* Aquí el contenido es .main entero, con la barra superior dentro (cambia de ancho con él). */
+.vt-barra .main {
+  view-transition-name: contenido;
+}
+
+.vt-barra .topbar {
+  view-transition-name: none;
+}
+
+.vt-barra .sidebar {
+  box-shadow: none; /* el borde lo dibuja el grupo, que es el que cambia de ancho */
+}
+
+.vt-barra .sb-indicator {
+  view-transition-name: none; /* la píldora va dentro de la captura de la barra */
+}
+
+:root.vt-barra::view-transition-group(*) {
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-emphasized);
+}
+
+:root.vt-barra::view-transition-group(barra),
+:root.vt-barra::view-transition-group(contenido) {
+  overflow: clip;
+}
+
+:root.vt-barra::view-transition-group(barra) {
+  box-sizing: border-box;
+  border-right: 1px solid var(--color-fill-muted);
+  background: var(--color-surface);
+}
+
+/* Las capturas no se estiran: quedan a su tamaño, arriba a la izquierda, y el grupo las recorta.
+ * La vieja va encima y se desvanece rápido (como en el cambio de sección) sobre la nueva, que ya
+ * está entera: es el mismo fundido sin mezclar las dos (plus-lighter), que obliga a componerlas
+ * aparte en cada frame. */
+:root.vt-barra::view-transition-image-pair(*) {
+  isolation: auto;
+}
+
+:root.vt-barra::view-transition-old(*),
+:root.vt-barra::view-transition-new(*) {
+  width: auto;
+  height: auto;
+  mix-blend-mode: normal;
+}
+
+:root.vt-barra::view-transition-old(*) {
+  z-index: 1;
+  animation: vt-desvanecer var(--duration-fast) var(--ease-out) both;
+}
+
+:root.vt-barra::view-transition-new(*) {
+  animation: none;
+}
+
+@keyframes vt-desvanecer {
+  to {
+    opacity: 0;
+  }
 }
 
 /* ---------- Barra lateral ---------- */
@@ -285,9 +436,11 @@
   gap: var(--space-16);
   height: 72px;
   padding: 0 var(--space-40);
-  background: var(--nav-bg);
-  -webkit-backdrop-filter: var(--nav-backdrop);
-  backdrop-filter: var(--nav-backdrop);
+  /* Opaca y sin backdrop-filter: el blur sobre una barra sticky recalculaba el fondo en
+     cada frame y trababa el scroll y la barra lateral. La línea inferior la separa del
+     contenido, igual que el filo de la barra lateral. */
+  background: var(--color-surface);
+  box-shadow: inset 0 -1px 0 var(--color-fill-muted);
 }
 
 .topbar__title {
@@ -372,16 +525,22 @@
   padding: var(--space-8) var(--space-40) var(--space-48);
 }
 
-/* Entrada de cada sección: los bloques suben y aparecen escalonados (style="--i: n"). */
+/* Entrada de cada sección: los bloques suben escalonados (style="--i: n"); el primero, sin espera.
+   Solo se anima transform: con opacidad 0 el contenido no se ve y Chrome no lo cuenta para el LCP. */
 .view > * {
   animation: view-in var(--duration-slow) var(--ease-emphasized) both;
-  animation-delay: calc(var(--i, 0) * 70ms);
+  animation-delay: calc(var(--i, 0) * 50ms);
+}
+
+/* Al llegar deslizando desde otra sección (ver "Cambio de sección") los bloques ya están puestos:
+   animarlos sobre el deslizamiento repintaría la captura nueva en cada frame. */
+.vt-seccion .view > * {
+  animation: none;
 }
 
 @keyframes view-in {
   from {
-    opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
 }
 
@@ -644,6 +803,39 @@
   background-position: right 18px center;
   font-size: var(--text-body);
   letter-spacing: var(--tracking-body);
+}
+
+/* La misma flecha como <svg> en el HTML: <div class="select-flecha"><select>…</select><svg>…</svg></div>.
+   La imagen data-URI de .select obliga al navegador a montar un documento SVG la primera vez que
+   la pinta (~17 ms con CPU ×4 al abrir "Nuevo movimiento" en el Resumen, donde no hay otro select).
+   Por ahora solo la usa ese diálogo; los demás select siguen con la imagen de fondo. */
+.select-flecha {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.select-flecha > .select {
+  background-image: none;
+}
+
+.select-flecha > svg {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.select-flecha > .select--lg + svg {
+  right: 18px;
 }
 
 .btn--danger {

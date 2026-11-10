@@ -3,6 +3,9 @@
   cualquier sección. Lo maneja static/js/movimiento-dialogo.js, que guarda con la API JSON
   (/api/v1/movimientos). Espera "grupos_cuentas", "catalogo_categorias" y "hoy_iso".
   Mismos campos, mensajes de error y botón con spinner/check que el formulario del login.
+  La flecha de los select es un <svg> en el HTML (.select-flecha en app.css), no la imagen de fondo
+  de .select: así la primera apertura no paga montar esa imagen. El monto lleva autofocus para que
+  showModal() lo enfoque directo (sin pasar por el botón de cerrar y recalcular estilos otra vez).
 #}
 <dialog class="dialog" id="dialogo-movimiento" aria-labelledby="dialogo-titulo" data-dialogo-movimiento>
   <form class="dialog__body" data-form-movimiento novalidate>
@@ -48,7 +51,7 @@
       <div class="float-field">
         <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M13 6.5c-.6-1-1.7-1.5-3-1.5-1.8 0-3 .9-3 2.3 0 3.2 6 1.8 6 5.1 0 1.4-1.3 2.4-3 2.4-1.4 0-2.6-.6-3.2-1.6M10 3v14"/></svg>
         <input class="float-field__input dialog__monto num" id="mov-monto" name="monto" type="text"
-               inputmode="numeric" autocomplete="off" placeholder=" " aria-describedby="monto-error" required>
+               inputmode="numeric" autocomplete="off" placeholder=" " aria-describedby="monto-error" required autofocus>
         <label class="float-field__label" for="mov-monto">Monto</label>
       </div>
       <p class="field__message field__message--error" id="monto-error" hidden></p>
@@ -57,25 +60,31 @@
     <div class="dialog__pair">
       <div class="field">
         <label class="field__label" for="mov-categoria">Categoría</label>
-        <select class="select select--lg" id="mov-categoria" name="categoria_id" aria-describedby="categoria_id-error" required>
-          <option value="">Elige una</option>
-          {% for c in catalogo_categorias %}
-          <option value="{{ c.id }}" data-tipo="{{ c.tipo }}">{{ c.nombre }}</option>
-          {% endfor %}
-        </select>
+        <div class="select-flecha">
+          <select class="select select--lg" id="mov-categoria" name="categoria_id" aria-describedby="categoria_id-error" required>
+            <option value="">Elige una</option>
+            {% for c in catalogo_categorias %}
+            <option value="{{ c.id }}" data-tipo="{{ c.tipo }}">{{ c.nombre }}</option>
+            {% endfor %}
+          </select>
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5 9 4.5"/></svg>
+        </div>
         <p class="field__message field__message--error" id="categoria_id-error" hidden></p>
       </div>
 
       <div class="field">
         <label class="field__label" for="mov-cuenta">Cuenta</label>
-        <select class="select select--lg" id="mov-cuenta" name="cuenta_id" aria-describedby="cuenta_id-error" required>
-          <option value="">Elige una</option>
-          {% for grupo, refs in grupos_cuentas %}
-          <optgroup label="{{ grupo }}">
-            {% for c in refs %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
-          </optgroup>
-          {% endfor %}
-        </select>
+        <div class="select-flecha">
+          <select class="select select--lg" id="mov-cuenta" name="cuenta_id" aria-describedby="cuenta_id-error" required>
+            <option value="">Elige una</option>
+            {% for grupo, refs in grupos_cuentas %}
+            <optgroup label="{{ grupo }}">
+              {% for c in refs %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
+            </optgroup>
+            {% endfor %}
+          </select>
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5 9 4.5"/></svg>
+        </div>
         <p class="field__message field__message--error" id="cuenta_id-error" hidden></p>
       </div>
     </div>

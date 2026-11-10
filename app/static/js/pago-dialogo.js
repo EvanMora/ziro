@@ -6,13 +6,12 @@
  *   data-tarjetas del <dialog>. Al editar, el monto del pago se devuelve a los dos saldos para
  *   calcular cuánto se puede pagar.
  * - Debajo del botón muestra cómo quedan la cuenta de origen y la tarjeta.
- * - Guarda con la API JSON y recarga la página con un aviso (lo muestra movimiento-dialogo.js).
+ * - Guarda con la API JSON y recarga la página con ?aviso=<clave> (lo muestra app-shell.js).
  */
 (() => {
   const dialog = document.querySelector("[data-dialogo-pago]");
   if (!dialog) return;
 
-  const AVISO = "aviso";
   const dinero = JSON.parse(dialog.dataset.cuentasDinero);
   const tarjetas = JSON.parse(dialog.dataset.tarjetas);
   const form = dialog.querySelector("[data-form-pago]");
@@ -179,10 +178,10 @@
   }
 
   // ---------- Guardar ----------
-  function irDespues(texto) {
-    sessionStorage.setItem(AVISO, texto);
+  function irDespues(aviso) {
     const url = new URL(location.href);
     url.searchParams.delete("guardado");
+    url.searchParams.set("aviso", aviso);
     location.assign(url);
   }
 
@@ -234,7 +233,7 @@
       if (respuesta.ok) {
         guardar.classList.remove("is-loading");
         guardar.classList.add("is-success");
-        setTimeout(() => irDespues(actual ? "Pago guardado" : "Pago registrado"), 450);
+        setTimeout(() => irDespues(actual ? "pago-guardado" : "pago-registrado"), 450);
         return;
       }
       ocupar(guardar, false);
@@ -271,7 +270,7 @@
     ocupar(botonEliminar, true);
     try {
       const respuesta = await pedir(`/api/v1/pagos/${actual.id}`, { method: "DELETE" });
-      if (respuesta.ok || respuesta.status === 404) return irDespues("Pago eliminado");
+      if (respuesta.ok || respuesta.status === 404) return irDespues("pago-eliminado");
       ocupar(botonEliminar, false);
       mostrarAlerta(alertaConfirmar, "No se pudo eliminar. Inténtalo de nuevo.");
     } catch {

@@ -90,8 +90,10 @@
         body: JSON.stringify({ montos }),
       });
       if (r.ok) {
-        sessionStorage.setItem("aviso", etiqueta === "Crear presupuesto" ? "Presupuesto creado" : "Presupuesto guardado");
-        location.assign(form.dataset.volver);
+        // El aviso lo muestra app-shell.js en la página de origen.
+        const volver = new URL(form.dataset.volver, location.href);
+        volver.searchParams.set("aviso", etiqueta === "Crear presupuesto" ? "presupuesto-creado" : "presupuesto-guardado");
+        location.assign(volver);
         return;
       }
       const datos = await r.json().catch(() => ({}));

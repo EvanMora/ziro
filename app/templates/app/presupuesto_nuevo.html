@@ -6,7 +6,7 @@
 {% block titulo %}Presupuesto de {{ mes | nombre_mes }}{% endblock %}
 
 {% block estilos %}
-<link rel="stylesheet" href="{{ url_for('static', path='css/presupuestos.css') }}">
+<link rel="stylesheet" href="{{ static('css/presupuestos.css') }}">
 {% endblock %}
 
 {% block contenido %}
@@ -70,5 +70,5 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', path='js/presupuesto-nuevo.js') }}" defer></script>
+<script src="{{ static('js/presupuesto-nuevo.js') }}" defer></script>
 {% endblock %}

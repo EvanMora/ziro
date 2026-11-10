@@ -1,4 +1,5 @@
 """Rutas que devuelven HTML renderizado con Jinja2."""
+import os
 import re
 from datetime import date
 from pathlib import Path
@@ -32,6 +33,22 @@ templates = Jinja2Templates(directory=APP_DIR / "templates")
 # Nombre provisional: el equipo aún no lo define (ver docs/alcance.md, decisiones pendientes).
 templates.env.globals["app_name"] = "Ziro"
 formato.registrar(templates.env)
+# Revisar en cada petición si una plantilla cambió en disco cuesta 8 stat por página. Solo hace falta
+# en desarrollo: "fastapi dev" pone FASTAPI_ENV=development antes de importar la app (ver .env.example).
+templates.env.auto_reload = os.environ.get("FASTAPI_ENV") == "development"
+# Sin la línea en blanco ni la sangría que deja cada {% ... %}: medio KB menos por página, más o menos.
+templates.env.trim_blocks = templates.env.lstrip_blocks = True
+
+
+def static(path: str) -> str:
+    """URL de un archivo de app/static: static('css/app.css') → "/static/css/app.css". Hace lo mismo
+    que url_for('static', path=...) sin recorrer las rutas de Starlette en cada llamada (era la mitad
+    del render), y la deja relativa al sitio en vez de http://host/static/.... Debe coincidir con el
+    app.mount("/static", ...) de app/main.py (lo revisa tests/test_rendimiento_a8.py)."""
+    return "/static/" + path
+
+
+templates.env.globals["static"] = static
 
 router = APIRouter(include_in_schema=False)
 
@@ -50,16 +67,22 @@ PROXIMAMENTE = [("Metas", "metas")]
 
 
 
-def _grupos_cuentas(usuario_id: int) -> list[tuple[str, list]]:
-    """Las cuentas para los <select>, en <optgroup> "Dinero" y "Tarjetas" (sin grupos vacíos)."""
-    lista = cuentas_servicio.listar(usuario_id)
+def _grupos_cuentas(lista: list) -> list[tuple[str, list]]:
+    """Las cuentas (de cuentas.listar) para los <select>, en <optgroup> "Dinero" y "Tarjetas" (sin
+    grupos vacíos)."""
     grupos = [("Dinero", [cuentas_servicio.ref(c) for c in lista if not cuentas_servicio.es_tarjeta(c.tipo)]),
               ("Tarjetas", [cuentas_servicio.ref(c) for c in lista if cuentas_servicio.es_tarjeta(c.tipo)])]
     return [(nombre, refs) for nombre, refs in grupos if refs]
 
 
-def _contexto_app(request: Request, seccion: str) -> dict:
-    _, categorias = movimientos_servicio.catalogo(USUARIO_DEMO["id"])
+def _contexto_app(request: Request, seccion: str, *, hoy: date | None = None, cuentas: list | None = None,
+                  categorias: list | None = None) -> dict:
+    """Lo común a todas las secciones. hoy, cuentas (cuentas.listar) y categorias (categorias.listar):
+    si la ruta ya los leyó, para no leerlos otra vez en la misma petición."""
+    usuario = USUARIO_DEMO["id"]
+    cuentas = cuentas_servicio.listar(usuario) if cuentas is None else cuentas
+    categorias = categorias_servicio.listar(usuario) if categorias is None else categorias
+    hoy = hoy or movimientos_servicio.hoy()
     return {
         "seccion": seccion,
         "secciones": SECCIONES,
@@ -67,34 +90,34 @@ def _contexto_app(request: Request, seccion: str) -> dict:
         "usuario": USUARIO_DEMO,
         "barra_contraida": request.cookies.get(COOKIE_BARRA) == "1",
         # Para el diálogo "Nuevo movimiento", que está en todas las secciones.
-        "grupos_cuentas": _grupos_cuentas(USUARIO_DEMO["id"]),
-        "catalogo_categorias": categorias,
-        "hoy_iso": movimientos_servicio.hoy().isoformat(),
+        "grupos_cuentas": _grupos_cuentas(cuentas),
+        "catalogo_categorias": [categorias_servicio.ref(c) for c in categorias],  # como movimientos.catalogo
+        "hoy_iso": hoy.isoformat(),
         # El asistente con Gemini solo aparece si hay GEMINI_API_KEY.
         "ia_disponible": ia_servicio.configurado(),
     }
 
 
-def _periodo(anio: int | None, mes: int | None) -> tuple[int, int]:
+def _periodo(anio: int | None, mes: int | None, hoy: date | None = None) -> tuple[int, int]:
     """Mes pedido, o el actual si no se pide ninguno. No deja ir a meses futuros. Usa la fecha de
-    la app (movimientos.hoy), como el resto de las cuentas."""
-    hoy = movimientos_servicio.hoy()
+    la app (movimientos.hoy), como el resto de las cuentas; la ruta la puede pasar si ya la leyó."""
+    hoy = hoy or movimientos_servicio.hoy()
     if anio is None or mes is None:
         return hoy.year, hoy.month
     return min((anio, mes), (hoy.year, hoy.month))
 
 
-def _mes_de_url(anio: str | None, mes: str | None) -> tuple[int, int]:
+def _mes_de_url(anio: str | None, mes: str | None, hoy: date | None = None) -> tuple[int, int]:
     """El mes de ?anio=&mes=. Si alguno falta o no es válido (mes=13, anio=abc), el mes actual:
     una URL mal escrita muestra la página, no un error en JSON."""
     a, m = _entero(anio), _entero(mes)
     if a is None or m is None or not (2000 <= a <= 2100 and 1 <= m <= 12):
-        return _periodo(None, None)
-    return _periodo(a, m)
+        return _periodo(None, None, hoy)
+    return _periodo(a, m, hoy)
 
 
-def _navegacion_mes(anio: int, mes: int) -> dict:
-    hoy = movimientos_servicio.hoy()
+def _navegacion_mes(anio: int, mes: int, hoy: date | None = None) -> dict:
+    hoy = hoy or movimientos_servicio.hoy()
     anterior = (anio - 1, 12) if mes == 1 else (anio, mes - 1)
     siguiente = (anio + 1, 1) if mes == 12 else (anio, mes + 1)
     return {
@@ -117,14 +140,22 @@ def resumen(
     anio: str | None = None,
     mes: str | None = None,
 ):
-    anio, mes = _mes_de_url(anio, mes)
-    datos = obtener_resumen(USUARIO_DEMO["id"], anio, mes)
-    presupuesto = presupuestos_servicio.del_mes(USUARIO_DEMO["id"], anio, mes)
+    # Lo que usan varias partes de la página se lee una sola vez: la fecha, las cuentas, las
+    # categorías y los movimientos del mes (los usan el Resumen y el presupuesto).
+    usuario = USUARIO_DEMO["id"]
     hoy = movimientos_servicio.hoy()
-    context = _contexto_app(request, "resumen") | {
+    anio, mes = _mes_de_url(anio, mes, hoy)
+    cuentas = cuentas_servicio.listar(usuario)
+    categorias = categorias_servicio.listar(usuario)
+    lista = movimientos_servicio.listar(usuario, anio, mes)
+    datos = obtener_resumen(usuario, anio, mes, lista=lista, lista_cuentas=cuentas)
+    presupuesto = presupuestos_servicio.del_mes(
+        usuario, anio, mes, gastos=presupuestos_servicio.gastos_del_mes(usuario, anio, mes, lista=lista),
+        lista_categorias=categorias)
+    context = _contexto_app(request, "resumen", hoy=hoy, cuentas=cuentas, categorias=categorias) | {
         "resumen": datos,
         "vista": vista_resumen(datos),
-        "periodo": _navegacion_mes(anio, mes),
+        "periodo": _navegacion_mes(anio, mes, hoy),
         "presupuesto": presupuesto,
         "vista_presupuesto": presupuestos_vista.resumen(presupuesto),
         "es_mes_actual": (anio, mes) == (hoy.year, hoy.month),
@@ -227,8 +258,8 @@ def presupuestos(request: Request, anio: str | None = None, mes: str | None = No
     anio, mes = _mes_de_url(anio, mes)
     hoy = movimientos_servicio.hoy()
     usuario = USUARIO_DEMO["id"]
-    datos = presupuestos_servicio.del_mes(usuario, anio, mes)
     gastos = presupuestos_servicio.gastos_del_mes(usuario, anio, mes)
+    datos = presupuestos_servicio.del_mes(usuario, anio, mes, gastos=gastos)  # sin listar el mes otra vez
     context = _contexto_app(request, "presupuestos") | {
         "datos": datos,
         "vista": presupuestos_vista.resumen(datos),

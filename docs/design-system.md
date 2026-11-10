@@ -136,6 +136,8 @@ Los controles nuevos de la sección Movimientos salen de los del login. No agreg
 
 Inter se sirve desde `app/static/fonts/` (declarada con `@font-face` en `styles.css`), no desde Google Fonts: carga sin internet y no envía datos a terceros.
 
+Inter no se precarga (`<link rel="preload">`): en móvil competía con el CSS y retrasaba el primer pintado. Mientras baja se ve "Inter Fallback", Arial ajustada con `size-adjust` y `ascent-override` a las medidas de Inter, para que el texto no salte al cambiar de fuente. `inter-latin.woff2` está recortada (receta en `app/static/fonts/README.md`).
+
 Inter va **primera** en la lista de fuentes. Si se pone `-apple-system` o `BlinkMacSystemFont` antes, Chrome en Linux (comprobado; posiblemente también en Windows) los toma como "fuente del sistema" y nunca llega a usar Inter.
 
 `--font-display` va en títulos de 21px o más y `--font-text` en todo lo demás.

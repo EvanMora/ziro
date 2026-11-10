@@ -22,6 +22,47 @@
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
+/* Respaldo mientras baja Inter: Arial (o Helvetica, o su clon Liberation Sans en Linux)
+   estirada para ocupar lo mismo que Inter, así el cambio de fuente no mueve el texto.
+   Inter ya no se precarga (competía con el CSS y retrasaba el primer pintado en móvil).
+   size-adjust = ancho medio de Inter / ancho medio de Arial, medido sobre los textos de
+   las plantillas y el JS; ascent/descent = métricas de Inter (0,96875 / 0,2412 em) divididas
+   por size-adjust. Mismo unicode-range que las dos caras de Inter: lo que Inter no cubre
+   (flechas, emojis...) sigue yendo a la fuente del sistema, como antes. */
+@font-face {
+  font-family: "Inter Fallback";
+  font-weight: 400;
+  src: local("Arial"), local("ArialMT"), local("Helvetica"), local("Liberation Sans"), local("LiberationSans");
+  size-adjust: 107.69%;
+  ascent-override: 89.95%;
+  descent-override: 22.4%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Inter Fallback";
+  font-weight: 500;
+  src: local("Arial"), local("ArialMT"), local("Helvetica"), local("Liberation Sans"), local("LiberationSans");
+  size-adjust: 108.57%;
+  ascent-override: 89.23%;
+  descent-override: 22.22%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* 600 contra Arial Bold: la negrita sintética de la regular no ensancha el texto. */
+@font-face {
+  font-family: "Inter Fallback";
+  font-weight: 600;
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Helvetica Bold"), local("Helvetica-Bold"), local("Liberation Sans Bold"), local("LiberationSans-Bold");
+  size-adjust: 101.99%;
+  ascent-override: 94.98%;
+  descent-override: 23.65%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 /* ---------- Base ---------- */
 *,
 *::before,
@@ -96,98 +137,6 @@ a:hover {
 
 .skip-link:focus {
   top: var(--space-8);
-}
-
-/* ---------- Navegación global ---------- */
-.global-nav {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  height: var(--nav-height);
-  background: var(--nav-bg);
-  -webkit-backdrop-filter: var(--nav-backdrop);
-  backdrop-filter: var(--nav-backdrop);
-  box-shadow: 0 1px 0 var(--color-fill-muted);
-}
-
-.global-nav__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: var(--content-max);
-  height: 100%;
-  margin: 0 auto;
-  padding: 0 var(--space-20);
-}
-
-.wordmark {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-8);
-  color: var(--color-text);
-  font-family: var(--font-display);
-  font-size: var(--text-body);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0;
-}
-
-.wordmark:hover {
-  text-decoration: none;
-}
-
-.global-nav__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-}
-
-.global-nav__hint {
-  color: var(--color-text-secondary);
-  font-size: var(--text-caption);
-  letter-spacing: var(--tracking-caption);
-}
-
-/* Píldora negra del menú: llamativa sin competir con el azul de la acción principal. */
-.nav-cta {
-  gap: 6px;
-  padding: 7px 12px 7px 15px;
-  font-weight: var(--weight-medium);
-  animation: nav-cta-in var(--duration-slow) var(--ease-emphasized) 700ms both;
-}
-
-.nav-cta__arrow {
-  width: 12px;
-  height: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transition: transform var(--duration-default) var(--ease-emphasized);
-}
-
-.nav-cta:hover .nav-cta__arrow,
-.nav-cta:focus-visible .nav-cta__arrow {
-  transform: translateX(3px);
-}
-
-@keyframes nav-cta-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-}
-
-@media (max-width: 600px) {
-  .global-nav__hint {
-    display: none;
-  }
-}
-
-.wordmark__mark {
-  width: 20px;
-  height: 20px;
-  flex: none;
 }
 
 /* ---------- Botones ---------- */
@@ -273,27 +222,6 @@ a:hover {
 
 .btn[disabled] {
   cursor: progress;
-}
-
-/* Barrido de luz al pasar el mouse. */
-.btn--shine {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-}
-
-.btn--shine::after {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  content: "";
-  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
-  transform: translateX(-120%);
-}
-
-.btn--shine:hover:not([disabled])::after {
-  transform: translateX(120%);
-  transition: transform 700ms var(--ease-out);
 }
 
 /* Éxito: el botón pasa a verde y dibuja un check antes de redirigir. */
@@ -402,10 +330,6 @@ a:hover {
     background-color var(--duration-default) var(--ease-out);
 }
 
-.float-field__input--action {
-  padding-right: 56px;
-}
-
 .float-field__input:hover {
   border-color: var(--color-text);
 }
@@ -469,113 +393,6 @@ a:hover {
   transform: translateY(-50%) scale(1.08);
 }
 
-.float-field__action {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-  transform: translateY(-50%);
-  transition: background-color var(--duration-fast) var(--ease-out);
-}
-
-.float-field__action:hover {
-  background: var(--color-canvas);
-}
-
-.float-field__action svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: var(--color-text);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* La raya del ojo se dibuja cuando la contraseña está visible. */
-.eye-slash {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  transition: stroke-dashoffset var(--duration-slow) var(--ease-emphasized);
-}
-
-.is-revealed .eye-slash {
-  stroke-dashoffset: 0;
-}
-
-/* Casilla con check que se dibuja. El input real queda encima, invisible, para teclado y lectores. */
-.check-fancy {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-8);
-  font-size: var(--text-small);
-  letter-spacing: var(--tracking-small);
-  cursor: pointer;
-}
-
-.check-fancy input {
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.check-fancy__box {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  flex: none;
-  border-radius: 6px;
-  box-shadow: inset 0 0 0 1px var(--color-border-strong);
-  transition: background-color var(--duration-default) var(--ease-out), box-shadow var(--duration-default) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
-}
-
-.check-fancy:hover .check-fancy__box {
-  box-shadow: inset 0 0 0 1px var(--color-text);
-}
-
-.check-fancy input:active + .check-fancy__box {
-  transform: scale(0.9);
-}
-
-.check-fancy input:focus-visible + .check-fancy__box {
-  box-shadow: inset 0 0 0 1px var(--color-text), var(--focus-ring);
-}
-
-.check-fancy input:checked + .check-fancy__box {
-  background: var(--color-text);
-  box-shadow: inset 0 0 0 1px var(--color-text);
-}
-
-.check-fancy__box svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: var(--color-on-primary);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  transition: stroke-dashoffset var(--duration-slow) var(--ease-emphasized);
-}
-
-.check-fancy input:checked + .check-fancy__box svg {
-  stroke-dashoffset: 0;
-}
-
 /* ---------- Avisos ---------- */
 .alert {
   padding: var(--space-12) var(--space-16);
@@ -611,9 +428,5 @@ a:hover {
 
   .spinner {
     animation: spin 1.5s linear infinite !important;
-  }
-
-  .nav-cta {
-    animation: none;
   }
 }

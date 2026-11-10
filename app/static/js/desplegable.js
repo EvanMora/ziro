@@ -11,10 +11,29 @@
     const panel = raiz.querySelector("[data-desplegable-panel]");
     const abierto = () => !panel.hidden;
 
+    // Los listeners globales solo están puestos mientras el menú está abierto.
+    const alPulsarTecla = (event) => {
+      if (event.key === "Escape") cerrar({ devolverFoco: true });
+    };
+    const alPulsarFuera = (event) => {
+      if (!raiz.contains(event.target)) cerrar();
+    };
+    // Al volver con Atrás (bfcache) el menú queda cerrado.
+    const alVolver = (event) => {
+      if (event.persisted) cerrar();
+    };
+    function escucharFuera(activar) {
+      const metodo = activar ? "addEventListener" : "removeEventListener";
+      document[metodo]("keydown", alPulsarTecla);
+      document[metodo]("pointerdown", alPulsarFuera);
+      window[metodo]("pageshow", alVolver);
+    }
+
     function abrir() {
       if (abierto()) return;
       panel.hidden = false;
       boton.setAttribute("aria-expanded", "true");
+      escucharFuera(true);
       raiz.dispatchEvent(new CustomEvent("desplegable:abierto"));
     }
 
@@ -22,21 +41,12 @@
       if (!abierto()) return;
       panel.hidden = true;
       boton.setAttribute("aria-expanded", "false");
+      escucharFuera(false);
       raiz.dispatchEvent(new CustomEvent("desplegable:cerrado"));
       if (devolverFoco) boton.focus();
     }
 
     boton.addEventListener("click", () => (abierto() ? cerrar() : abrir()));
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && abierto()) cerrar({ devolverFoco: true });
-    });
-    document.addEventListener("pointerdown", (event) => {
-      if (abierto() && !raiz.contains(event.target)) cerrar();
-    });
-    // Al volver con Atrás (bfcache) el menú queda cerrado.
-    window.addEventListener("pageshow", (event) => {
-      if (event.persisted) cerrar();
-    });
 
     raiz.desplegable = { abrir, cerrar, abierto };
   }

@@ -1,8 +1,8 @@
 {#
   Análisis del mes con Gemini, en la barra superior del Resumen: botón "Analizar mes ▾" que
   despliega 1 a 3 observaciones y un consejo sobre el mes que se está viendo. Se pide al abrirlo por
-  primera vez (GET /api/v1/ia/analisis-mes). Abrir y cerrar lo maneja static/js/desplegable.js; lo
-  demás, static/js/analisis.js. Espera "periodo". Solo se incluye si hay GEMINI_API_KEY.
+  primera vez, o un poco antes al dejar el ratón encima o enfocar el botón (GET /api/v1/ia/analisis-mes).
+  Abrir y cerrar lo maneja static/js/desplegable.js; lo demás, static/js/analisis.js. Espera "periodo". Solo se incluye si hay GEMINI_API_KEY.
 #}
 {% set nombre = periodo.mes | nombre_mes %}
 <div class="asistente" data-analisis data-desplegable data-anio="{{ periodo.anio }}" data-mes="{{ periodo.mes }}"
@@ -29,4 +29,4 @@
     </p>
   </div>
 </div>
-<script src="{{ url_for('static', path='js/analisis.js') }}" defer></script>
+<script src="{{ static('js/analisis.js') }}" defer></script>

@@ -73,18 +73,18 @@
   white-space: nowrap;
 }
 
+/* Sin backdrop-filter: detrás solo está el gris liso del escenario, así que no cambiaba nada
+   y se recalculaba en cada frame de grow-y. */
 .capsule {
   width: 100%;
   min-height: 4px;
   border-radius: var(--radius-card) var(--radius-card) 0 0;
-  -webkit-backdrop-filter: blur(6px) saturate(1.6);
-  backdrop-filter: blur(6px) saturate(1.6);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
     inset 0 0 0 1px rgba(255, 255, 255, 0.7),
     inset 0 18px 24px -18px rgba(255, 255, 255, 0.9);
   transform-origin: bottom;
-  animation: grow-y 620ms var(--ease-emphasized) 180ms both;
+  animation: grow-y 400ms var(--ease-emphasized) both;
 }
 
 .capsule--income {
@@ -144,7 +144,7 @@
   background: var(--chart-ink-muted);
   border-radius: var(--radius-pill);
   transform-origin: left;
-  animation: grow-x 520ms var(--ease-emphasized) 260ms both;
+  animation: grow-x 400ms var(--ease-emphasized) both;
 }
 
 .cats li.is-top .cats__bar {
@@ -191,6 +191,13 @@
   .capsules__axis {
     gap: var(--space-20);
   }
+}
+
+/* Al llegar deslizando desde otra sección las barras ya están crecidas (ver app.css, "Cambio de
+   sección"). */
+.vt-seccion .capsule,
+.vt-seccion .cats__bar {
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

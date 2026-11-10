@@ -203,6 +203,13 @@ def _usos(usuario_id: int, c: Cuenta) -> int:
     return _usos_por_cuenta(usuario_id).get(c.id, 0)
 
 
+def saldos(usuario_id: int, lista: list[Cuenta] | None = None) -> dict[int, Decimal]:
+    """Saldo (dinero) o deuda (tarjeta) de hoy de cada cuenta, por id: lo que usa el Resumen. Es la
+    parte barata de panel(), sin contar los movimientos y pagos de cada cuenta (eso recorre todos
+    los movimientos). lista: las cuentas, si la ruta ya las leyó con listar()."""
+    return _saldos(usuario_id, listar(usuario_id) if lista is None else lista)
+
+
 def panel(usuario_id: int) -> PanelCuentas:
     lista = listar(usuario_id)
     saldos = _saldos(usuario_id, lista)

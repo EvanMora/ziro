@@ -6,7 +6,8 @@
 {% block titulo %}Presupuestos{% endblock %}
 
 {% block estilos %}
-<link rel="stylesheet" href="{{ url_for('static', path='css/presupuestos.css') }}">
+<link rel="stylesheet" href="{{ static('css/presupuesto-barra.css') }}">
+<link rel="stylesheet" href="{{ static('css/presupuestos.css') }}">
 {% endblock %}
 
 {% block acciones %}
@@ -133,5 +134,5 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', path='js/presupuestos-calendario.js') }}" defer></script>
+<script src="{{ static('js/presupuestos-calendario.js') }}" defer></script>
 {% endblock %}

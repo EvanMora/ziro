@@ -6,7 +6,13 @@ from fastapi import APIRouter, Body, Query, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from app.schemas.movimientos import FiltrosMovimientos, ListaMovimientos, Movimiento, MovimientoEntrada, Tipo
+from app.schemas.movimientos import (
+    FiltrosMovimientos,
+    ListaMovimientos,
+    Movimiento,
+    MovimientoEntrada,
+    Tipo,
+)
 from app.services import movimientos as servicio
 from app.web.sesion import USUARIO_DEMO
 

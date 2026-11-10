@@ -7,8 +7,8 @@ movimientos: no aparecen en los ingresos, los gastos ni los recientes.
 """
 from decimal import Decimal
 
-from app.schemas.dashboard import CuentaSaldo, GastoCategoria, ResumenDashboard
 from app.schemas.cuentas import NOMBRE_TIPO
+from app.schemas.dashboard import CuentaSaldo, GastoCategoria, ResumenDashboard
 from app.services import cuentas as cuentas_servicio
 from app.services import movimientos
 

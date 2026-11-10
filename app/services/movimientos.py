@@ -20,8 +20,11 @@ from app.schemas.movimientos import (
     MovimientoEntrada,
 )
 from app.services import categorias, cuentas
-from app.services.comun import ErrorValidacion, NoEncontrado  # la API los toma de aquí: servicio.ErrorValidacion
-from app.services.comun import limpiar_texto
+from app.services.comun import (  # la API los toma de aquí: servicio.ErrorValidacion
+    ErrorValidacion,
+    NoEncontrado,
+    limpiar_texto,
+)
 from app.services.comun import normalizar as _normalizar
 
 MAX_DESCRIPCION = 80

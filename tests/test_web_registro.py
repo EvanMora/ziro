@@ -71,3 +71,12 @@ def test_flujo_completo_de_registro():
     resumen = cliente.get("/resumen")
     assert resumen.status_code == 200
     assert "Ana Gómez" in resumen.text
+
+
+def test_pista_de_la_contrasena_es_neutra_y_se_oculta_con_el_error():
+    html = client.get("/registro").text
+    css = open("app/static/css/login.css", encoding="utf-8").read()
+
+    assert 'class="field__message field__message--info" id="password-hint"' in html
+    assert ".field__message--info {" in css
+    assert ".field__message--error:not([hidden]) ~ .field__message--info" in css

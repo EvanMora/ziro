@@ -4,6 +4,9 @@ fetch. Igual que las otras APIs, los errores de validación llegan como {"errore
 - DELETE /api/v1/cuentas/{id} recibe ?mover_a=<id> si la cuenta tiene movimientos o pagos.
 - Los pagos se registran en la tarjeta (POST /api/v1/cuentas/{id}/pagos) y se editan o eliminan
   por su id (/api/v1/pagos/{id}).
+- Las transferencias entre cuentas se cuelgan de este router (prefix /api/v1/cuentas) porque
+  app/main.py ya lo registra y ese archivo no se puede tocar (cambia para Vercel): quedan en
+  /api/v1/cuentas/transferencias.
 """
 import re
 from typing import Any
@@ -16,9 +19,12 @@ from app.schemas.cuentas import Cuenta, CuentaEntrada, Pago, PagoEntrada, PanelC
 from app.services import cuentas as servicio
 from app.api.comun import usuario_requerido
 from app.services.comun import ErrorValidacion, NoEncontrado
+from app.api import transferencias as api_transferencias
 
 router = APIRouter(prefix="/api/v1/cuentas", tags=["cuentas"])
 router_pagos = APIRouter(prefix="/api/v1/pagos", tags=["cuentas"])
+# Sin tocar app/main.py, las rutas de este módulo ya registradas suman las de transferencias.
+router.include_router(api_transferencias.router, prefix="/transferencias")
 
 _MENSAJES_CUENTA = {
     "nombre": "Escribe un nombre.",

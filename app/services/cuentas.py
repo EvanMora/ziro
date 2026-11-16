@@ -7,6 +7,8 @@ Saldos (ver docs/superpowers/specs/2026-11-02-cuentas-design.md):
 - Editar el "saldo de hoy" ajusta inicial en la diferencia: no es un movimiento.
 - Pagos de tarjeta: bajan la deuda de la tarjeta y el saldo de la cuenta de origen (cada uno desde
   su creada_en). No son movimientos: no suman en ingresos ni gastos en ningún lado.
+- Transferencias entre cuentas: bajan el saldo del origen y suben el del destino (cada uno desde
+  su creada_en). Tampoco son movimientos: no suman en ingresos ni gastos en ningún lado.
 
 Reglas: nombre obligatorio, de hasta MAX_NOMBRE caracteres y único entre las cuentas de la persona
 (sin tildes ni mayúsculas); una cuenta con movimientos no pasa de dinero a tarjeta ni al revés;
@@ -14,7 +16,8 @@ eliminarla con movimientos exige pasarlos a otra cuenta del mismo grupo, y si no
 elimina. Nunca se borran movimientos.
 
 Las cuentas y los pagos viven en las tablas `cuentas` y `pagos_tarjeta` (app/models/cuentas.py y
-app/models/pagos_tarjeta.py). Las firmas y los modelos se mantienen.
+app/models/pagos_tarjeta.py). Las transferencias, en `transferencias` (app/models/transferencias.py).
+Las firmas y los modelos se mantienen.
 
 El usuario demo (id 1) empieza con las tres cuentas que usa la plantilla de
 services/movimientos.py y una tarjeta. Se crean el primer día del mes anterior a hoy(), así solo
@@ -29,6 +32,7 @@ from sqlalchemy import delete, func, select, update
 from app.models.cuentas import CuentaDB
 from app.models.movimientos import MovimientoDB
 from app.models.pagos_tarjeta import PagoTarjetaDB
+from app.models.transferencias import TransferenciaDB
 from app.schemas.cuentas import (
     Cuenta,
     CuentaConSaldo,
@@ -36,6 +40,8 @@ from app.schemas.cuentas import (
     Pago,
     PagoEntrada,
     PanelCuentas,
+    Transferencia,
+    TransferenciaEntrada,
 )
 from app.schemas.movimientos import CuentaRef, FiltrosMovimientos, Movimiento
 from app.services import database
@@ -167,9 +173,26 @@ def _pagos_de(usuario_id: int) -> list[tuple[int, int, int, Decimal, date]]:
         ]
 
 
-def _saldos(usuario_id: int, lista: list[Cuenta], sin_pago: int | None = None) -> dict[int, Decimal]:
-    """Saldo (dinero) o deuda (tarjeta) de hoy de cada cuenta. sin_pago deja fuera un pago: el que
-    se está editando, para no contar su monto anterior."""
+def _transferencias_de(usuario_id: int) -> list[tuple[int, int, int, Decimal, date]]:
+    """Las transferencias del usuario como tuplas (id, origen_id, destino_id, monto, fecha), para
+    no arrastrar objetos de la sesión fuera de ella."""
+    from app.services import movimientos
+    with database.sesion() as db:
+        return [
+            (t.id, t.cuenta_origen_id, t.cuenta_destino_id, movimientos._normalizar_monto(t.monto), t.fecha)
+            for t in db.execute(
+                select(TransferenciaDB)
+                .where(TransferenciaDB.usuario_id == usuario_id)
+                .order_by(TransferenciaDB.id)
+            ).scalars().all()
+        ]
+
+
+def _saldos(usuario_id: int, lista: list[Cuenta], sin_pago: int | None = None,
+            sin_transferencia: int | None = None) -> dict[int, Decimal]:
+    """Saldo (dinero) o deuda (tarjeta) de hoy de cada cuenta, por id. sin_pago deja fuera un pago
+    y sin_transferencia una transferencia: los que se están editando, para no contar su monto
+    anterior."""
     from app.services import movimientos
     if not lista:
         return {}
@@ -187,6 +210,14 @@ def _saldos(usuario_id: int, lista: list[Cuenta], sin_pago: int | None = None) -
             c = por_id.get(cuenta_id)
             if c and fecha >= c.creada_en:
                 saldos[c.id] -= monto
+    for id_transferencia, origen_id, destino_id, monto, fecha in _transferencias_de(usuario_id):
+        if id_transferencia == sin_transferencia:
+            continue
+        # La plata no se crea ni se destruye: sale de una cuenta y entra en la otra.
+        for cuenta_id, cambio in ((origen_id, -monto), (destino_id, monto)):
+            c = por_id.get(cuenta_id)
+            if c and fecha >= c.creada_en:
+                saldos[c.id] += cambio
     from app.services import movimientos
     return {id_: movimientos._normalizar_monto(v) for id_, v in saldos.items()}
 
@@ -205,11 +236,27 @@ def _pagos_por_cuenta(usuario_id: int) -> dict[int, int]:
     return cuantos
 
 
+def _transferencias_por_cuenta(usuario_id: int) -> dict[int, int]:
+    """Cuántas transferencias tiene cada cuenta, como origen o como destino."""
+    cuantos: dict[int, int] = {}
+    with database.sesion() as db:
+        for columna in (TransferenciaDB.cuenta_origen_id, TransferenciaDB.cuenta_destino_id):
+            for cuenta_id, n in db.execute(
+                select(columna, func.count(TransferenciaDB.id))
+                .where(TransferenciaDB.usuario_id == usuario_id)
+                .group_by(columna)
+            ).all():
+                cuantos[cuenta_id] = cuantos.get(cuenta_id, 0) + n
+    return cuantos
+
+
 def _usos_por_cuenta(usuario_id: int) -> dict[int, int]:
-    """Movimientos (de los meses ya sembrados) y pagos de cada cuenta."""
+    """Movimientos (de los meses ya sembrados), pagos y transferencias de cada cuenta."""
     from app.services import movimientos
     usos = movimientos.usos_por_cuenta(usuario_id)
     for cuenta_id, cuantos in _pagos_por_cuenta(usuario_id).items():
+        usos[cuenta_id] = usos.get(cuenta_id, 0) + cuantos
+    for cuenta_id, cuantos in _transferencias_por_cuenta(usuario_id).items():
         usos[cuenta_id] = usos.get(cuenta_id, 0) + cuantos
     return usos
 
@@ -307,14 +354,16 @@ def _datos(e: CuentaEntrada) -> dict:
             "cupo": e.cupo if tarjeta else None, "dia_pago": e.dia_pago if tarjeta else None}
 
 
-def _texto_usos(movimientos: int, pagos: int) -> str:
+def _texto_usos(movimientos: int, pagos: int, transferencias: int = 0) -> str:
     """"Tiene 1 movimiento y 2 pagos. Elige a qué cuenta pasarlos" (o "pasarlo" si es uno solo)."""
     partes = []
     if movimientos:
         partes.append("1 movimiento" if movimientos == 1 else f"{movimientos} movimientos")
     if pagos:
         partes.append("1 pago" if pagos == 1 else f"{pagos} pagos")
-    pronombre = "pasarlo" if movimientos + pagos == 1 else "pasarlos"
+    if transferencias:
+        partes.append("1 transferencia" if transferencias == 1 else f"{transferencias} transferencias")
+    pronombre = "pasarlo" if movimientos + pagos + transferencias == 1 else "pasarlos"
     return f"Tiene {' y '.join(partes)}. Elige a qué cuenta {pronombre}."
 
 
@@ -367,12 +416,13 @@ def eliminar(usuario_id: int, id: int, mover_a: int | None = None) -> None:
             raise ErrorValidacion({"mover_a": f"Es {unica}. Crea otra para pasarle sus movimientos antes de eliminarla."})
         if mover_a is None:
             pagos = _pagos_por_cuenta(usuario_id).get(id, 0)
-            raise ErrorValidacion({"mover_a": _texto_usos(usos - pagos, pagos)})
+            transferencias = _transferencias_por_cuenta(usuario_id).get(id, 0)
+            raise ErrorValidacion({"mover_a": _texto_usos(usos - pagos - transferencias, pagos, transferencias)})
         if destino is None or destino.id == id:
             raise ErrorValidacion({"mover_a": "Elige otra cuenta."})
         if es_tarjeta(destino.tipo) != tarjeta:
             raise ErrorValidacion({"mover_a": "Elige una tarjeta." if tarjeta else "Elige una cuenta de dinero."})
-        # Reasignar y borrar en la misma transacción: no se pierde ningún movimiento ni pago.
+        # Reasignar y borrar en la misma transacción: no se pierde ningún movimiento, pago ni transferencia.
         with database.sesion() as db:
             db.execute(
                 update(MovimientoDB)
@@ -388,6 +438,16 @@ def eliminar(usuario_id: int, id: int, mover_a: int | None = None) -> None:
                 update(PagoTarjetaDB)
                 .where(PagoTarjetaDB.origen_id == id, PagoTarjetaDB.usuario_id == usuario_id)
                 .values(origen_id=destino.id)
+            )
+            db.execute(
+                update(TransferenciaDB)
+                .where(TransferenciaDB.cuenta_origen_id == id, TransferenciaDB.usuario_id == usuario_id)
+                .values(cuenta_origen_id=destino.id)
+            )
+            db.execute(
+                update(TransferenciaDB)
+                .where(TransferenciaDB.cuenta_destino_id == id, TransferenciaDB.usuario_id == usuario_id)
+                .values(cuenta_destino_id=destino.id)
             )
             db.execute(
                 delete(CuentaDB).where(CuentaDB.id == id, CuentaDB.usuario_id == usuario_id)
@@ -544,3 +604,123 @@ def pagos_del_mes(usuario_id: int, anio: int, mes: int, filtros: FiltrosMovimien
                 continue
             pagos.append(pago)
         return pagos
+
+
+# ---------- Transferencias entre cuentas ----------
+
+def _como_transferencia(fila: TransferenciaDB) -> Transferencia:
+    origen = obtener(fila.usuario_id, fila.cuenta_origen_id)
+    destino = obtener(fila.usuario_id, fila.cuenta_destino_id)
+    from app.services import movimientos
+    return Transferencia(id=fila.id, fecha=fila.fecha, monto=movimientos._normalizar_monto(fila.monto),
+                         origen=ref(origen), destino=ref(destino),
+                         origen_icono=origen.icono, origen_tono=origen.tono,
+                         destino_icono=destino.icono, destino_tono=destino.tono)
+
+
+def obtener_transferencia(usuario_id: int, id: int) -> Transferencia | None:
+    with database.sesion() as db:
+        fila = db.execute(
+            select(TransferenciaDB).where(TransferenciaDB.id == id, TransferenciaDB.usuario_id == usuario_id)
+        ).scalar_one_or_none()
+        return _como_transferencia(fila) if fila is not None else None
+
+
+def listar_transferencias(usuario_id: int) -> list[Transferencia]:
+    """Todas las transferencias, de la más nueva a la más vieja. No son movimientos: con los
+    filtros de Movimientos no aparecen en el historial."""
+    with database.sesion() as db:
+        filas = db.execute(
+            select(TransferenciaDB)
+            .where(TransferenciaDB.usuario_id == usuario_id)
+            .order_by(TransferenciaDB.fecha.desc(), TransferenciaDB.id.desc())
+        ).scalars().all()
+        return [_como_transferencia(f) for f in filas]
+
+
+def _validar_transferencia(usuario_id: int, e: TransferenciaEntrada,
+                           transferencia_id: int | None) -> tuple[Cuenta, Cuenta, Decimal]:
+    """Devuelve las cuentas de origen y destino y el monto normalizado, o lanza ErrorValidacion.
+
+    Como los pagos, la fecha se compara con la creación solo si cambió: una transferencia que ya
+    estaba guardada se puede seguir editando aunque hoy sea anterior a creada_en de alguna cuenta."""
+    from app.services import movimientos
+    errores: dict[str, str] = {}
+    monto = None
+    if not e.monto.is_finite() or e.monto <= 0:
+        errores["monto"] = "Escribe un monto mayor que 0."
+    elif e.monto >= movimientos.MAX_MONTO:
+        errores["monto"] = "El monto es demasiado grande."
+    else:
+        monto = movimientos._normalizar_monto(e.monto)
+        if monto <= 0:  # "0.001" pasa "> 0" pero se guardaría como 0,00
+            errores["monto"] = "Escribe un monto mayor que 0."
+            monto = None
+
+    origen = obtener(usuario_id, e.cuenta_origen_id)
+    if origen is None or es_tarjeta(origen.tipo):
+        errores["cuenta_origen_id"] = "Elige una cuenta de dinero de dónde sale."
+        origen = None
+    destino = obtener(usuario_id, e.cuenta_destino_id)
+    if destino is None or es_tarjeta(destino.tipo):
+        errores["cuenta_destino_id"] = "Elige una cuenta de dinero a dónde va."
+        destino = None
+    if origen is not None and destino is not None and origen.id == destino.id:
+        errores["cuenta_destino_id"] = "Las dos cuentas deben ser distintas."
+        destino = None
+
+    anterior_fecha = None
+    if transferencia_id is not None:
+        with database.sesion() as db:
+            fila = db.execute(
+                select(TransferenciaDB).where(TransferenciaDB.id == transferencia_id,
+                                              TransferenciaDB.usuario_id == usuario_id)
+            ).scalar_one_or_none()
+            if fila is not None:
+                anterior_fecha = fila.fecha
+    fecha_nueva = transferencia_id is None or e.fecha != anterior_fecha
+    if e.fecha > _hoy():
+        errores["fecha"] = "La fecha no puede ser futura."
+    elif fecha_nueva and ((origen and e.fecha < origen.creada_en)
+                          or (destino and e.fecha < destino.creada_en)):
+        errores["fecha"] = "La fecha es anterior a la creación de la cuenta."
+
+    if errores:
+        raise ErrorValidacion(errores)
+    return origen, destino, monto
+
+
+def registrar_transferencia(usuario_id: int, e: TransferenciaEntrada) -> Transferencia:
+    origen, destino, monto = _validar_transferencia(usuario_id, e, None)
+    with database.sesion() as db:
+        fila = TransferenciaDB(usuario_id=usuario_id, cuenta_origen_id=origen.id,
+                               cuenta_destino_id=destino.id, monto=monto, fecha=e.fecha)
+        db.add(fila)
+        db.flush()
+        id_transferencia = fila.id
+    return obtener_transferencia(usuario_id, id_transferencia)
+
+
+def actualizar_transferencia(usuario_id: int, id: int, e: TransferenciaEntrada) -> Transferencia:
+    """Cambia monto, cuentas o fecha. La plata sigue moviéndose entre cuentas del mismo usuario."""
+    anterior = obtener_transferencia(usuario_id, id)
+    if anterior is None:
+        raise NoEncontrado(id)
+    origen, destino, monto = _validar_transferencia(usuario_id, e, id)
+    with database.sesion() as db:
+        db.execute(
+            update(TransferenciaDB)
+            .where(TransferenciaDB.id == id, TransferenciaDB.usuario_id == usuario_id)
+            .values(cuenta_origen_id=origen.id, cuenta_destino_id=destino.id,
+                    monto=monto, fecha=e.fecha)
+        )
+    return obtener_transferencia(usuario_id, id)
+
+
+def eliminar_transferencia(usuario_id: int, id: int) -> None:
+    with database.sesion() as db:
+        borradas = db.execute(
+            delete(TransferenciaDB).where(TransferenciaDB.id == id, TransferenciaDB.usuario_id == usuario_id)
+        ).rowcount
+        if not borradas:
+            raise NoEncontrado(id)

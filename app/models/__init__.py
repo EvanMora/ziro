@@ -4,6 +4,7 @@ from app.models.cuentas import Cuenta, CuentaDB
 from app.models.movimientos import Movimiento, MovimientoDB
 from app.models.pagos_tarjeta import PagoTarjeta, PagoTarjetaDB
 from app.models.presupuestos import Presupuesto, PresupuestoDB
+from app.models.transferencias import Transferencia, TransferenciaDB
 from app.models.usuarios import Usuario, UsuarioDB
 
 __all__ = [
@@ -18,6 +19,8 @@ __all__ = [
     "PagoTarjetaDB",
     "Presupuesto",
     "PresupuestoDB",
+    "Transferencia",
+    "TransferenciaDB",
     "Usuario",
     "UsuarioDB",
 ]

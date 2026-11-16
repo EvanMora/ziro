@@ -91,3 +91,25 @@ class Pago(BaseModel):
     origen: CuentaRef
     tarjeta_icono: Icono
     tarjeta_tono: Tono
+
+
+class TransferenciaEntrada(BaseModel):
+    """Cuerpo de registrar una transferencia entre dos cuentas de dinero del usuario."""
+    monto: Decimal
+    cuenta_origen_id: StrictInt  # estricto: true no cuenta como la cuenta 1
+    cuenta_destino_id: StrictInt
+    fecha: date
+
+
+class Transferencia(BaseModel):
+    """Una transferencia entre cuentas: plata que pasa de una cuenta de dinero a otra. No es un
+    gasto ni un ingreso: solo baja el saldo de una cuenta y sube el de la otra."""
+    id: int
+    fecha: date
+    monto: Decimal
+    origen: CuentaRef
+    destino: CuentaRef
+    origen_icono: Icono
+    origen_tono: Tono
+    destino_icono: Icono
+    destino_tono: Tono

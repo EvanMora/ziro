@@ -1,0 +1,99 @@
+{% extends "app/base_app.html" %}
+
+{% block titulo %}Metas{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ static('css/presupuesto-barra.css') }}">
+<link rel="stylesheet" href="{{ static('css/cuentas.css') }}">
+<link rel="stylesheet" href="{{ static('css/metas.css') }}">
+{% endblock %}
+
+{% block acciones %}
+<button class="btn btn--primary cuentas-nueva" type="button" aria-label="Nueva meta" aria-haspopup="dialog" data-nueva-meta>
+  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+  <span class="cuentas-nueva__texto">Nueva meta</span>
+</button>
+{% endblock %}
+
+{% block contenido %}
+{% if not vista.tarjetas %}
+<section class="pending" style="--i: 0">
+  <span class="pending__icon" aria-hidden="true">{{ iconos.seccion("metas") }}</span>
+  <h2 class="card-title">Todavía no tienes metas</h2>
+  <p>Ponle nombre y monto a lo que quieres lograr (un viaje, un computador, un fondo para emergencias) y te decimos cuánto guardar cada mes.</p>
+  <button class="btn btn--outline btn--lg" type="button" data-nueva-meta>Crear una meta</button>
+</section>
+{% else %}
+
+<section class="card metas-total" style="--i: 0" aria-label="Total">
+  <div>
+    <p class="label">Llevas ahorrado</p>
+    <p class="big num">{{ panel.total_ahorrado | dinero }}</p>
+  </div>
+  <div class="metas-total__barra">
+    <p class="sub">de {{ panel.total_objetivo | dinero }} en {{ vista.tarjetas | length }} meta{{ "s" if vista.tarjetas | length != 1 }}</p>
+    <span class="pres-pista" role="img" aria-label="Progreso total: {{ vista.pct_total | porcentaje }}">
+      <span class="pres-pista__relleno metas-relleno" style="width: {{ [vista.pct_total, 100] | min }}%"></span>
+    </span>
+  </div>
+</section>
+
+<div class="metas-grid" data-metas{% if guardado %} data-guardado="{{ guardado }}"{% endif %}>
+  {% for t in vista.tarjetas %}
+  {% set p = t.p %}
+  <article class="card meta meta--{{ t.clase }}" style="--i: {{ loop.index }}" data-id="{{ p.meta.id }}"
+           data-meta='{{ t.datos | tojson }}' aria-labelledby="meta-{{ p.meta.id }}">
+    <div class="meta__head">
+      <button class="meta__nombre" type="button" aria-haspopup="dialog" data-editar-meta
+              aria-label="Editar {{ p.meta.nombre }}">
+        <h2 class="card-title" id="meta-{{ p.meta.id }}">{{ p.meta.nombre }}</h2>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l.8-3L10.5 3.3a1.2 1.2 0 0 1 1.7 0l.5.5a1.2 1.2 0 0 1 0 1.7L6 12.2z"/></svg>
+      </button>
+      <span class="meta__chip">{{ t.chip }}</span>
+    </div>
+
+    <p class="meta__monto"><span class="mid num">{{ p.ahorrado | dinero }}</span> <span class="sub">de {{ p.meta.objetivo | dinero }}</span></p>
+    <span class="pres-pista pres-pista--gruesa" role="img" aria-label="Progreso: {{ p.pct | porcentaje }}">
+      <span class="pres-pista__relleno metas-relleno" style="width: {{ t.ancho }}%; --j: {{ loop.index0 }}"></span>
+    </span>
+    <p class="sub meta__detalle">{{ t.detalle }}</p>
+
+    <div class="meta__acciones">
+      <button class="btn btn--ink" type="button" aria-haspopup="dialog" data-aportar>Aportar</button>
+      <button class="btn btn--outline" type="button" aria-haspopup="dialog" data-retirar{% if p.ahorrado <= 0 %} disabled{% endif %}>Retirar</button>
+    </div>
+
+    {% if t.aportes %}
+    <details class="meta__aportes">
+      <summary class="sub">Últimos aportes</summary>
+      <ul class="rows">
+        {% for item in t.aportes %}
+        {% set a = item.a %}
+        <li>
+          <span class="sub">{{ item.fecha }}</span>
+          <span class="num{% if a.monto > 0 %} income{% endif %}">{{ a.monto | dinero("+" if a.monto > 0 else "-") }}</span>
+          <button class="meta__borrar" type="button" data-borrar-aporte="{{ a.id }}"
+                  aria-label="Borrar {{ 'aporte' if a.monto > 0 else 'retiro' }} de {{ a.monto | dinero }} del {{ item.fecha }}">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          </button>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if t.mas_aportes %}<p class="sub">y {{ t.mas_aportes }} más</p>{% endif %}
+    </details>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block dialogos %}
+{% include "app/_dialogo_meta.html" %}
+{% include "app/_dialogo_aporte.html" %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ static('js/metas.js') }}" defer></script>
+{% endblock %}

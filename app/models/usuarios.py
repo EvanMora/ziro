@@ -2,11 +2,11 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Integer, String, Text
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
+from app.models.base import Base
 
-class Base(DeclarativeBase):
-    pass
+__all__ = ["Base", "Usuario", "UsuarioDB"]
 
 
 class UsuarioDB(Base):

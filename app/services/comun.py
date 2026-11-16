@@ -3,6 +3,11 @@ textos escritos por la persona y la comparación sin tildes ni mayúsculas."""
 import unicodedata
 
 
+# Id del usuario demo (la plantilla de datos de prueba solo lo siembra a él; ver
+# services/cuentas.py, services/movimientos.py y services/presupuestos.py).
+DEMO_USUARIO_ID = 1
+
+
 class ErrorValidacion(Exception):
     """Errores por campo: {campo: mensaje}. La API responde 422 con {"errores": ...}."""
 

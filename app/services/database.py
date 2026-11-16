@@ -1,8 +1,9 @@
 """Acceso a la base de datos: SQLite con SQLAlchemy.
 
-Por ahora cubre la tabla de usuarios (quienes se registran con correo y contraseña o entran con
-Google). TODO(backend): cuando llegue el almacenamiento real, las demás tablas (Cuenta, Categoria,
-Movimiento, ...) se agregan a este módulo o se conectan a la misma base de datos.
+Aquí se crea (create_all) el esquema completo de las tablas declaradas en app/models/.
+Por ahora los servicios de cuentas, categorías, movimientos, presupuestos y pagos de tarjeta
+aún leen y escriben en memoria del proceso (ver sus comentarios TODO(backend)); cuando se
+migren, consultar esta misma base.
 
 La ruta por defecto es data/usuarios.sqlite (carpeta ignorada en .gitignore).
 Se puede cambiar mediante la variable de entorno DATABASE_PATH o DATABASE_URL.
@@ -14,8 +15,10 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from sqlalchemy import Engine, StaticPool, create_engine, text
+from sqlalchemy import Engine, StaticPool, create_engine, func, select, text
 from sqlalchemy.orm import Session, sessionmaker
+
+from app.models.categorias import CategoriaDB, PREDETERMINADAS
 
 DATABASE_PATH: Any = os.environ.get("DATABASE_PATH", "data/usuarios.sqlite")
 _motores: dict[str, tuple[Engine, sessionmaker[Session]]] = {}
@@ -53,10 +56,30 @@ def obtener_motor_y_sesion(ruta: Any = None) -> tuple[Engine, sessionmaker[Sessi
         fabrica = sessionmaker(autocommit=False, autoflush=False, bind=motor)
         _motores[url] = (motor, fabrica)
 
-        from app.models.usuarios import Base
+        # Importar app.models (no solo usuarios) para que create_all conozca todas las tablas.
+        from app.models import Base
         Base.metadata.create_all(bind=motor)
+        with fabrica() as db:
+            _sembrar_predeterminadas(db)
+            db.commit()
 
     return _motores[url]
+
+
+def _sembrar_predeterminadas(db: Session) -> None:
+    """Inserta las 7 categorías predeterminadas (ids 1-7) si la tabla no tiene ninguna.
+
+    Es la siembra básica del sistema: sin ellas la app no puede registrar movimientos. Solo se
+    siembra si no hay ninguna predeterminada, así los reinicios de tests no duplican."""
+    hay = db.execute(
+        select(func.count(CategoriaDB.id)).where(CategoriaDB.usuario_id.is_(None))
+    ).scalar_one()
+    if hay:
+        return
+    db.add_all([
+        CategoriaDB(id=id_, nombre=nombre, tipo=tipo, usuario_id=None)
+        for id_, nombre, tipo in PREDETERMINADAS
+    ])
 
 
 def obtener_motor(ruta: Any = None) -> Engine:
@@ -98,16 +121,21 @@ def obtener_db() -> Generator[Session, None, None]:
 
 
 def reiniciar() -> None:
-    """Vacía la tabla de usuarios y reinicia la secuencia autoincrement. Para tests."""
+    """Vacía todas las tablas, reinicia las secuencias autoincrement y vuelve a sembrar las
+    categorías predeterminadas. Para tests."""
     motor, fabrica = obtener_motor_y_sesion()
-    from app.models.usuarios import Base
+    from app.models import Base
 
     Base.metadata.create_all(bind=motor)
+    tablas = ("movimientos", "pagos_tarjeta", "presupuestos", "cuentas", "categorias", "usuarios")
     with fabrica() as db:
-        db.execute(text("DELETE FROM usuarios"))
-        try:
-            db.execute(text("DELETE FROM sqlite_sequence WHERE name='usuarios'"))
-        except Exception:
-            # sqlite_sequence solo existe si ya hubo autoincrement
-            pass
+        for tabla in tablas:
+            db.execute(text(f"DELETE FROM {tabla}"))
+        for tabla in tablas:
+            try:
+                db.execute(text(f"DELETE FROM sqlite_sequence WHERE name='{tabla}'"))
+            except Exception:
+                # sqlite_sequence solo existe si ya hubo autoincrement
+                pass
+        _sembrar_predeterminadas(db)
         db.commit()

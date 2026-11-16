@@ -1,9 +1,11 @@
 import os
+import secrets
+import warnings
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -14,6 +16,7 @@ from app.api import ia as api_ia
 from app.api import movimientos as api_movimientos
 from app.api import presupuestos as api_presupuestos
 from app.web import views
+from app.web.sesion import DURACION_RECORDAR, SinSesion
 
 # Variables del archivo .env (p. ej. GEMINI_API_KEY). Las que ya existan en el entorno no se pisan.
 load_dotenv()
@@ -30,15 +33,43 @@ class Estaticos(StaticFiles):
         return respuesta
 
 
+def clave_secreta() -> str:
+    """La clave que firma la cookie de sesión. En producción es obligatoria y larga; en desarrollo, si
+    falta, se genera una al azar (las sesiones se cierran al reiniciar el servidor)."""
+    clave = os.environ.get("SECRET_KEY", "")
+    if os.environ.get("ENVIRONMENT") == "production":
+        if len(clave) < 32:
+            raise RuntimeError("SECRET_KEY es obligatoria en producción y debe tener al menos 32 caracteres.")
+        return clave
+    if not clave:
+        warnings.warn("SECRET_KEY no está definida: se usa una clave al azar y las sesiones se cierran "
+                      "al reiniciar. Defínela en el .env (ver .env.example).", stacklevel=2)
+        return secrets.token_urlsafe(48)
+    return clave
+
+
+def sin_sesion(request: Request, exc: SinSesion):
+    """Sin sesión válida: la API responde 401 y las páginas llevan al login."""
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(status_code=401, content={"detail": "Inicia sesión para continuar."})
+    return RedirectResponse("/login", status_code=303)
+
+
+SECRET_KEY = clave_secreta()
+MAX_AGE_COOKIE = int(DURACION_RECORDAR.total_seconds())
+
 app = FastAPI()
-# Sesión del login: la SessionMiddleware de Starlette firma la cookie con SECRET_KEY (via itsdangerous).
-# Mismo Site lax y secure solo en producción; en desarrollo (http://localhost) no se exige HTTPS.
+# Sesión del login: la SessionMiddleware de Starlette firma la cookie con SECRET_KEY (vía itsdangerous)
+# y la marca HttpOnly. SameSite lax, y Secure solo en producción (en desarrollo no hay HTTPS). La
+# cookie dura lo máximo (30 días, «Recordarme»); el vencimiento real lo revisa app/web/sesion.py.
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("SECRET_KEY") or "desarrollo-inseguro-cambiar",
+    secret_key=SECRET_KEY,
+    max_age=MAX_AGE_COOKIE,
     same_site="lax",
     https_only=os.environ.get("ENVIRONMENT") == "production",
 )
+app.add_exception_handler(SinSesion, sin_sesion)
 app.mount("/static", Estaticos(directory=Path(__file__).parent / "static"), name="static")
 app.include_router(views.router)
 app.include_router(api_movimientos.router)

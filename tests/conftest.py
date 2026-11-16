@@ -1,6 +1,12 @@
-import pytest
+import os
 
-from app.services import categorias, cuentas, database, ia, movimientos, presupuestos
+# Antes de importar la app: con una clave fija no avisa que falta, y las cookies firmadas en los
+# tests (tests/test_sesion.py) usan la misma.
+os.environ.setdefault("SECRET_KEY", "clave-de-pruebas-" + "x" * 32)
+
+import pytest  # noqa: E402
+
+from app.services import categorias, cuentas, database, ia, limites, movimientos, presupuestos
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +36,14 @@ def _base_de_datos_de_usuarios_en_memoria(monkeypatch):
     database.reiniciar()
     yield
     database.reiniciar()
+
+
+@pytest.fixture(autouse=True)
+def _limites_de_intentos_limpios():
+    """Cada test arranca sin intentos de login ni de registro contados."""
+    limites.reiniciar_todos()
+    yield
+    limites.reiniciar_todos()
 
 
 def pytest_configure(config):

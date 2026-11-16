@@ -1,8 +1,9 @@
 """Acceso a la base de datos: SQLite con SQLAlchemy.
 
-Por ahora cubre la tabla de usuarios (quienes se registran con correo y contraseña o entran con
-Google). TODO(backend): cuando llegue el almacenamiento real, las demás tablas (Cuenta, Categoria,
-Movimiento, ...) se agregan a este módulo o se conectan a la misma base de datos.
+Aquí se crea (create_all) el esquema completo de las tablas declaradas en app/models/.
+Por ahora los servicios de cuentas, categorías, movimientos, presupuestos y pagos de tarjeta
+aún leen y escriben en memoria del proceso (ver sus comentarios TODO(backend)); cuando se
+migren, consultar esta misma base.
 
 La ruta por defecto es data/usuarios.sqlite (carpeta ignorada en .gitignore).
 Se puede cambiar mediante la variable de entorno DATABASE_PATH o DATABASE_URL.
@@ -53,7 +54,8 @@ def obtener_motor_y_sesion(ruta: Any = None) -> tuple[Engine, sessionmaker[Sessi
         fabrica = sessionmaker(autocommit=False, autoflush=False, bind=motor)
         _motores[url] = (motor, fabrica)
 
-        from app.models.usuarios import Base
+        # Importar app.models (no solo usuarios) para que create_all conozca todas las tablas.
+        from app.models import Base
         Base.metadata.create_all(bind=motor)
 
     return _motores[url]
@@ -98,16 +100,25 @@ def obtener_db() -> Generator[Session, None, None]:
 
 
 def reiniciar() -> None:
-    """Vacía la tabla de usuarios y reinicia la secuencia autoincrement. Para tests."""
+    """Vacía todas las tablas y reinicia las secuencias autoincrement. Para tests.
+
+    Los hijos antes que los padres (movimientos y pagos_tarjeta referencian cuentas y
+    categorías; presupuestos, categorías; todos, usuarios).
+    """
     motor, fabrica = obtener_motor_y_sesion()
-    from app.models.usuarios import Base
+    from app.models import Base
 
     Base.metadata.create_all(bind=motor)
+    tablas = ("movimientos", "pagos_tarjeta", "presupuestos", "cuentas", "categorias", "usuarios")
     with fabrica() as db:
-        db.execute(text("DELETE FROM usuarios"))
-        try:
-            db.execute(text("DELETE FROM sqlite_sequence WHERE name='usuarios'"))
-        except Exception:
-            # sqlite_sequence solo existe si ya hubo autoincrement
-            pass
+        for tabla in tablas:
+            db.execute(text(f"DELETE FROM {tabla}"))
+        for tabla in tablas:
+            try:
+                db.execute(text(f"DELETE FROM sqlite_sequence WHERE name='{tabla}'"))
+            except Exception:
+                # sqlite_sequence solo existe si ya hubo autoincrement
+                pass
         db.commit()
+    # TODO(backend): cuando services/categorias.py use la tabla, volver a sembrar aquí las
+    # 7 predeterminadas (el id debe quedar en 1-7, como espera el catálogo).

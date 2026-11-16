@@ -30,3 +30,11 @@ def _base_de_datos_de_usuarios_en_memoria(monkeypatch):
     database.reiniciar()
     yield
     database.reiniciar()
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "sin_plantilla: el test no usa el usuario de prueba con la plantilla de datos ni la sesión "
+        "simulada (prueba el login, el registro o la protección reales).",
+    )

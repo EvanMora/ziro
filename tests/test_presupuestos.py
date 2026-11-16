@@ -84,12 +84,14 @@ def test_api_guarda_y_responde_errores_por_campo():
 def test_resumen_muestra_la_invitacion_y_luego_la_barra():
     antes = client.get("/resumen").text
     anio, mes = _mes_actual()
-    presupuestos.guardar(U, anio, mes, _entrada(a=(MERCADO, 450000)))
+    p = presupuestos.guardar(U, anio, mes, _entrada(a=(MERCADO, 450000)))
     despues = client.get("/resumen").text
 
     assert "Nuevo mes, nuevo presupuesto" in antes
     assert "Nuevo mes, nuevo presupuesto" not in despues
-    assert "Te quedan $450.000" in despues
+    # Lo gastado del mes varía con el día (la plantilla siembra hasta hoy), así que se compara
+    # con el restante calculado por el servicio en vez de un monto fijo.
+    assert f"Te quedan {formato.dinero(p.restante)}" in despues
 
 
 def test_presupuestos_muestra_el_vacio_y_luego_el_detalle():

@@ -1,6 +1,6 @@
 import pytest
 
-from app.services import categorias, cuentas, ia, movimientos, presupuestos
+from app.services import categorias, cuentas, database, ia, movimientos, presupuestos
 
 
 @pytest.fixture(autouse=True)
@@ -21,3 +21,12 @@ def _almacen_de_movimientos_limpio():
     ia.reiniciar_limite()
     ia.reiniciar_cache_analisis()
     presupuestos.reiniciar()
+
+
+@pytest.fixture(autouse=True)
+def _base_de_datos_de_usuarios_en_memoria(monkeypatch):
+    """Cada test arranca la base de datos de usuarios en memoria (SQLite) y sin usuarios guardados."""
+    monkeypatch.setattr(database, "DATABASE_PATH", "sqlite:///:memory:")
+    database.reiniciar()
+    yield
+    database.reiniciar()

@@ -3,15 +3,14 @@
  * - "Nueva categoría" (barra superior) y el lápiz de cada categoría propia abren el diálogo.
  * - Guarda con la API JSON (/api/v1/categorias) y muestra los errores por campo, como Movimientos.
  * - Si la categoría ya tiene movimientos, el tipo queda fijo y eliminarla pide a cuál pasarlos.
- * - Después de guardar o eliminar recarga el mismo mes con un aviso (lo muestra
- *   movimiento-dialogo.js, que está en todas las secciones) y ?guardado=<id> resalta la fila.
+ * - Después de guardar o eliminar recarga el mismo mes con ?aviso=<clave> (lo muestra
+ *   app-shell.js, que está en todas las secciones) y ?guardado=<id> resalta la fila.
  */
 (() => {
   const dialog = document.querySelector("[data-dialogo-categoria]");
   if (!dialog) return;
 
   const API = "/api/v1/categorias";
-  const AVISO = "aviso";
   const MAX_NOMBRE = 40;
   const reducido = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const form = dialog.querySelector("[data-form-categoria]");
@@ -121,11 +120,11 @@
   }
 
   // ---------- Guardar ----------
-  function irDespues(texto, id) {
-    sessionStorage.setItem(AVISO, texto);
+  function irDespues(aviso, id) {
     const url = new URL(location.href);
     url.searchParams.delete("guardado");
     if (id) url.searchParams.set("guardado", id);
+    url.searchParams.set("aviso", aviso);
     location.assign(url);
   }
 
@@ -161,7 +160,7 @@
       if (respuesta.ok) {
         guardar.classList.remove("is-loading");
         guardar.classList.add("is-success");
-        setTimeout(() => irDespues("Categoría guardada", datos.id), 450);
+        setTimeout(() => irDespues("categoria-guardada", datos.id), 450);
         return;
       }
       ocupar(guardar, false);
@@ -227,7 +226,7 @@
     try {
       const respuesta = await pedir(`${API}/${actual.id}${consulta}`, { method: "DELETE" });
       if (respuesta.ok || respuesta.status === 404) {
-        irDespues("Categoría eliminada", null);
+        irDespues("categoria-eliminada", null);
         return;
       }
       ocupar(botonEliminar, false);

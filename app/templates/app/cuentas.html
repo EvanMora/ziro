@@ -3,7 +3,7 @@
 {% block titulo %}Cuentas{% endblock %}
 
 {% block estilos %}
-<link rel="stylesheet" href="{{ url_for('static', path='css/cuentas.css') }}">
+<link rel="stylesheet" href="{{ static('css/cuentas.css') }}">
 {% endblock %}
 
 {% block acciones %}
@@ -134,6 +134,6 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', path='js/cuentas.js') }}" defer></script>
-<script src="{{ url_for('static', path='js/pago-dialogo.js') }}" defer></script>
+<script src="{{ static('js/cuentas.js') }}" defer></script>
+<script src="{{ static('js/pago-dialogo.js') }}" defer></script>
 {% endblock %}

@@ -10,6 +10,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 
+from app.schemas.movimientos import ListaMovimientos
 from app.schemas.presupuestos import (
     Estado,
     GastoDelDia,
@@ -73,22 +74,27 @@ def _dias(lista, anio: int, mes: int) -> list[GastoDelDia]:
             for d in (primero + timedelta(days=i) for i in range(ultimo))]
 
 
-def gastos_del_mes(usuario_id: int, anio: int, mes: int) -> list:
-    """Los movimientos de gasto del mes, del más reciente al más antiguo."""
-    return [m for m in movimientos.listar(usuario_id, anio, mes).movimientos if m.tipo == "gasto"]
+def gastos_del_mes(usuario_id: int, anio: int, mes: int, lista: ListaMovimientos | None = None) -> list:
+    """Los movimientos de gasto del mes, del más reciente al más antiguo. lista: el mes ya listado
+    con movimientos.listar (sin filtros), si la ruta lo tiene, para no recorrerlo otra vez."""
+    lista = movimientos.listar(usuario_id, anio, mes) if lista is None else lista
+    return [m for m in lista.movimientos if m.tipo == "gasto"]
 
 
-def del_mes(usuario_id: int, anio: int, mes: int) -> PresupuestoDelMes:
+def del_mes(usuario_id: int, anio: int, mes: int, gastos: list | None = None,
+            lista_categorias: list | None = None) -> PresupuestoDelMes:
+    """gastos (gastos_del_mes) y lista_categorias (categorias.listar): si la ruta ya los leyó, para
+    no listar el mes ni leer las categorías dos veces en la misma petición."""
     _sembrar(usuario_id, anio, mes)
     limites = _presupuestos.get((usuario_id, anio, mes), {})
-    gastos = gastos_del_mes(usuario_id, anio, mes)
+    gastos = gastos_del_mes(usuario_id, anio, mes) if gastos is None else gastos
 
     por_categoria: dict[int, Decimal] = defaultdict(Decimal)
     for m in gastos:
         por_categoria[m.categoria.id] += m.monto
 
     filas = []
-    for c in categorias.listar(usuario_id):
+    for c in categorias.listar(usuario_id) if lista_categorias is None else lista_categorias:
         if c.id not in limites:
             continue  # sin presupuesto, o la categoría ya no existe
         limite, gastado = limites[c.id], por_categoria[c.id]

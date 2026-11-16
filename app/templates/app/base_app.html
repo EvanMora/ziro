@@ -1,7 +1,7 @@
 {#
   Estructura de la app: barra lateral + barra superior + contenido de la sección.
   Cada sección es una página propia (una ruta por sección); la animación entre ellas la hace
-  el navegador con View Transitions (ver app.css). La barra lateral no se anima: se queda quieta.
+  el navegador con View Transitions (ver app.css). Las barras lateral y superior se quedan quietas.
 #}
 {% extends "base.html" %}
 {% import "app/_iconos.html" as iconos %}
@@ -9,10 +9,62 @@
 
 {% block title %}{% block titulo %}{% endblock %} · {{ app_name }}{% endblock %}
 
-{% block head %}
-{# Antes de pintar: los estilos saben que hay JS (p. ej. ocultan el botón "Filtrar"). #}
+{% block head_inicio %}
+{# Antes de pintar: los estilos saben que hay JS (p. ej. ocultan el botón "Filtrar"). Va antes de los
+   <link> de CSS: un script en línea detrás de una hoja de estilos espera a que esta cargue. #}
 <script>document.documentElement.classList.add("js");</script>
-<link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+{#
+  Cambio de sección tipo feed (las reglas están en app.css, "Cambio de sección"): si la sección
+  de destino está más abajo en el menú, el contenido sube; si está más arriba, baja.
+  - Sin dirección no se anima: misma sección (cambiar de mes o un filtro, /presupuestos ->
+    /presupuestos/nuevo, recargar tras guardar) o una página fuera del menú. Con la transición,
+    cambiar de mes tardaba ~185 ms más en pintar.
+  - pageswap (página que se va): saltarla aquí evita capturar la vista vieja. Si el cajón del
+    celular está abierto se cierra sin su transición, para que la captura salga sin él.
+  - pagereveal (página que llega): pone la dirección como tipo de la transición y la clase
+    vt-seccion, que apaga las animaciones de entrada mientras se desliza. Se dispara antes del
+    primer pintado, así que el oyente tiene que estar aquí, en línea; desde un script defer llega
+    tarde. Sin Navigation API (navigation.activation) no hay dirección y no se anima.
+#}
+<script>
+  (() => {
+    const ORDEN = {{ secciones | map(attribute=0) | list | tojson }};
+    const indice = (u) => ORDEN.indexOf(u.pathname.split("/")[1]);
+    const direccion = (desde, hacia) => {
+      if (!desde || !hacia) return null;
+      const a = new URL(desde), b = new URL(hacia);
+      if (a.origin !== b.origin) return null;
+      const origen = indice(a), destino = indice(b);
+      if (origen < 0 || destino < 0 || origen === destino) return null;
+      return destino > origen ? "hacia-abajo" : "hacia-arriba";
+    };
+    const raiz = document.documentElement;
+    // Saltarla rechaza la promesa "ready" con AbortError; se atrapa para que no salga en la consola.
+    const saltar = (vt) => { vt.ready.catch(() => {}); vt.skipTransition(); };
+    addEventListener("pageswap", (e) => {
+      if (!e.viewTransition) return;
+      if (!direccion(location.href, e.activation?.entry?.url)) return saltar(e.viewTransition);
+      const cajon = document.querySelector("[data-shell].is-open");
+      if (!cajon) return;
+      raiz.classList.add("vt-cierra-cajon");
+      cajon.classList.remove("is-open");
+      cajon.querySelector("[data-menu]")?.setAttribute("aria-expanded", "false");
+    });
+    // Al volver con Atrás desde la caché, el cajón vuelve a abrir y cerrar con su transición.
+    addEventListener("pageshow", () => raiz.classList.remove("vt-cierra-cajon"));
+    addEventListener("pagereveal", (e) => {
+      if (!e.viewTransition) return;
+      const tipo = direccion(window.navigation?.activation?.from?.url, location.href);
+      if (!tipo) return saltar(e.viewTransition);
+      e.viewTransition.types.add(tipo);
+      raiz.classList.add("vt-seccion");
+    });
+  })();
+</script>
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ static('css/app.css') }}">
 {% block estilos %}{% endblock %}
 {% endblock %}
 
@@ -92,7 +144,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', path='js/app-shell.js') }}" defer></script>
-<script src="{{ url_for('static', path='js/movimiento-dialogo.js') }}" defer></script>
-<script src="{{ url_for('static', path='js/desplegable.js') }}" defer></script>
+<script src="{{ static('js/app-shell.js') }}" defer></script>
+<script src="{{ static('js/movimiento-dialogo.js') }}" defer></script>
+<script src="{{ static('js/desplegable.js') }}" defer></script>
 {% endblock %}

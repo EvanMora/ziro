@@ -1,100 +1,10 @@
 /*
- * Presupuestos: barra del Resumen, crear presupuesto y la pantalla del mes (calendario de gastos y
- * barras por categoría). Solo usa variables de tokens.css.
+ * Presupuestos: crear presupuesto y la pantalla del mes (calendario de gastos y barras por
+ * categoría). El estado, la pista y la barra del Resumen están en presupuesto-barra.css, que se
+ * carga antes que este. Solo usa variables de tokens.css.
  * Colores de estado (docs/design-system.md): normal en tinta, alerta (80 %) en naranja y
  * excedido (más del 100 %) en rojo. El rojo no se usa para nada más.
  */
-
-/* ---------- Estado: un solo color por bloque, --c ---------- */
-.pres-barra--ok { --c: var(--color-text); }
-.pres-barra--alerta { --c: var(--color-warning); }
-.pres-barra--excedido { --c: var(--color-danger); }
-
-.pres-nota--alerta { color: var(--color-warning); }
-.pres-nota--excedido { color: var(--color-danger); }
-
-/* ---------- Pista de progreso ---------- */
-.pres-pista {
-  display: block;
-  height: 8px;
-  overflow: hidden;
-  background: var(--color-fill-muted);
-  border-radius: var(--radius-pill);
-}
-
-.pres-pista--gruesa {
-  height: 12px;
-}
-
-.pres-pista__relleno {
-  display: block;
-  height: 100%;
-  background: var(--c, var(--color-text));
-  border-radius: inherit;
-  transform-origin: left;
-  animation: pista-in 700ms var(--ease-emphasized) both;
-  animation-delay: calc(200ms + var(--j, 0) * 60ms);
-}
-
-@keyframes pista-in {
-  from { transform: scaleX(0); }
-}
-
-/* ---------- Barra del Resumen ---------- */
-.pres-barra {
-  display: grid;
-  gap: var(--space-8);
-  margin-bottom: var(--gap-element);
-  padding: var(--space-20) var(--card-padding);
-  color: var(--color-text);
-  background: var(--color-canvas);
-  border-radius: var(--radius-card);
-}
-
-a.pres-barra:hover {
-  text-decoration: none;
-}
-
-a.pres-barra:hover .pres-barra__ver {
-  text-decoration: underline;
-}
-
-.pres-barra__fila {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-12);
-}
-
-.pres-barra__titulo {
-  font-size: var(--text-body);
-  font-weight: var(--weight-semibold);
-}
-
-.pres-barra--alerta .pres-barra__titulo { color: var(--color-warning); }
-.pres-barra--excedido .pres-barra__titulo { color: var(--color-danger); }
-
-.pres-barra__ver {
-  color: var(--color-link);
-}
-
-.pres-barra--vacia {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-20);
-}
-
-.pres-barra--vacia .btn {
-  flex: none;
-  padding: 9px 18px;
-  font-size: var(--text-small);
-}
-
-.pres-barra--vacia > span {
-  display: grid;
-  gap: 2px;
-}
 
 /* ---------- Comunes de la sección ---------- */
 .pres-editar svg {
@@ -451,11 +361,6 @@ button.pres-dia:focus-visible {
 }
 
 @media (max-width: 640px) {
-  .pres-barra--vacia {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .pres-form__lista > li {
     grid-template-columns: 1fr;
     row-gap: var(--space-8);
@@ -489,10 +394,6 @@ button.pres-dia:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pres-pista__relleno {
-    animation: none;
-  }
-
   button.pres-dia {
     transition: none;
   }

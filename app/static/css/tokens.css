@@ -62,9 +62,11 @@
 
   /* ---------- Tipografía ---------- */
   /* Inter primero: en Chromium para Linux (comprobado), -apple-system y BlinkMacSystemFont
-     equivalen a la fuente del sistema y taparían a Inter. Se conservan como respaldo. */
-  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-text: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+     equivalen a la fuente del sistema y taparían a Inter. Se conservan como respaldo.
+     "Inter Fallback" (styles.css) es Arial ajustada a las medidas de Inter: es lo que se ve
+     mientras Inter se descarga, sin que el texto salte al cambiar. */
+  --font-display: "Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-text: "Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --numeric: tabular-nums;          /* usar en todo monto para que las cifras queden alineadas */
 
   --weight-regular: 400;

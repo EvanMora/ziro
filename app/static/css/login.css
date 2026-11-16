@@ -5,6 +5,241 @@
  * con la acción principal. Aquí el producto es el dashboard y la cápsula es el formulario.
  */
 
+/* Lo que sigue hasta "Titular" venía de styles.css, pero solo lo usa el login: aquí no bloquea
+   el pintado de las demás páginas. Este archivo se carga después de styles.css. */
+
+/* ---------- Navegación global ---------- */
+.global-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--nav-height);
+  background: var(--nav-bg);
+  -webkit-backdrop-filter: var(--nav-backdrop);
+  backdrop-filter: var(--nav-backdrop);
+  box-shadow: 0 1px 0 var(--color-fill-muted);
+}
+
+.global-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: var(--content-max);
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 var(--space-20);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+}
+
+.wordmark:hover {
+  text-decoration: none;
+}
+
+.global-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.global-nav__hint {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  letter-spacing: var(--tracking-caption);
+}
+
+/* Píldora negra del menú: llamativa sin competir con el azul de la acción principal.
+   El hueco y el peso los pone .btn: cuando esta regla estaba en styles.css iba antes que .btn
+   y su gap: 6px y su font-weight nunca se aplicaban; aquí ganarían y cambiarían el botón. */
+.nav-cta {
+  padding: 7px 12px 7px 15px;
+  animation: nav-cta-in var(--duration-slow) var(--ease-emphasized) 700ms both;
+}
+
+.nav-cta__arrow {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--duration-default) var(--ease-emphasized);
+}
+
+.nav-cta:hover .nav-cta__arrow,
+.nav-cta:focus-visible .nav-cta__arrow {
+  transform: translateX(3px);
+}
+
+@keyframes nav-cta-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (max-width: 600px) {
+  .global-nav__hint {
+    display: none;
+  }
+}
+
+.wordmark__mark {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+/* ---------- Botones y campos del login ---------- */
+/* Barrido de luz al pasar el mouse. */
+.btn--shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.btn--shine::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  transform: translateX(-120%);
+}
+
+.btn--shine:hover:not([disabled])::after {
+  transform: translateX(120%);
+  transition: transform 700ms var(--ease-out);
+}
+
+.float-field__input--action {
+  padding-right: 56px;
+}
+
+.float-field__action {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.float-field__action:hover {
+  background: var(--color-canvas);
+}
+
+.float-field__action svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* La raya del ojo se dibuja cuando la contraseña está visible. */
+.eye-slash {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--duration-slow) var(--ease-emphasized);
+}
+
+.is-revealed .eye-slash {
+  stroke-dashoffset: 0;
+}
+
+/* Casilla con check que se dibuja. El input real queda encima, invisible, para teclado y lectores. */
+.check-fancy {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+  cursor: pointer;
+}
+
+.check-fancy input {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.check-fancy__box {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  transition: background-color var(--duration-default) var(--ease-out), box-shadow var(--duration-default) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.check-fancy:hover .check-fancy__box {
+  box-shadow: inset 0 0 0 1px var(--color-text);
+}
+
+.check-fancy input:active + .check-fancy__box {
+  transform: scale(0.9);
+}
+
+.check-fancy input:focus-visible + .check-fancy__box {
+  box-shadow: inset 0 0 0 1px var(--color-text), var(--focus-ring);
+}
+
+.check-fancy input:checked + .check-fancy__box {
+  background: var(--color-text);
+  box-shadow: inset 0 0 0 1px var(--color-text);
+}
+
+.check-fancy__box svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--color-on-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--duration-slow) var(--ease-emphasized);
+}
+
+.check-fancy input:checked + .check-fancy__box svg {
+  stroke-dashoffset: 0;
+}
+
+/* Tiene que ir después de .nav-cta: con la misma especificidad gana la última. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-cta {
+    animation: none;
+  }
+}
+
 /* ---------- Titular ---------- */
 .login-hero {
   max-width: var(--content-max);

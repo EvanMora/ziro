@@ -4,13 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ffffff">
+  {# Scripts en línea que deben ir antes de las hojas de estilos: así no esperan a que cargue el CSS. #}
+  {% block head_inicio %}{% endblock %}
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
-  <link rel="icon" href="{{ url_for('static', path='img/favicon.svg') }}" type="image/svg+xml">
-  <link rel="icon" href="{{ url_for('static', path='img/favicon-32.png') }}" type="image/png" sizes="32x32">
-  <link rel="apple-touch-icon" href="{{ url_for('static', path='img/apple-touch-icon.png') }}">
-  <link rel="preload" href="{{ url_for('static', path='fonts/inter-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="{{ url_for('static', path='css/tokens.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', path='css/styles.css') }}">
+  <link rel="icon" href="{{ static('img/favicon.svg') }}" type="image/svg+xml">
+  <link rel="icon" href="{{ static('img/favicon-32.png') }}" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="{{ static('img/apple-touch-icon.png') }}">
+  <link rel="stylesheet" href="{{ static('css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ static('css/styles.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">

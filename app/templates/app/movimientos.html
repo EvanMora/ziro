@@ -3,7 +3,7 @@
 {% block titulo %}Movimientos{% endblock %}
 
 {% block estilos %}
-<link rel="stylesheet" href="{{ url_for('static', path='css/movimientos.css') }}">
+<link rel="stylesheet" href="{{ static('css/movimientos.css') }}">
 {% endblock %}
 
 {% block acciones %}
@@ -148,6 +148,6 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', path='js/pago-dialogo.js') }}" defer></script>
-<script src="{{ url_for('static', path='js/movimientos.js') }}" defer></script>
+<script src="{{ static('js/pago-dialogo.js') }}" defer></script>
+<script src="{{ static('js/movimientos.js') }}" defer></script>
 {% endblock %}

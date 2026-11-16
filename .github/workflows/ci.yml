@@ -21,16 +21,18 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.12' # La misma de Vercel (.python-version)
         cache: 'pip' # Opcional: acelera la instalación guardando en caché las librerías
 
-    # Paso 3: Instalar las dependencias listadas en tu requirements.txt
+    # Paso 3: Instalar las dependencias de desarrollo (requirements.txt más pytest)
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
 
     # Paso 4: Ejecutar Pytest para verificar que todo funcione bien
     - name: Run Pytest
+      env:
+        DATABASE_PATH: "sqlite:///:memory:" # Los tests nunca usan una base en disco
       run: |
         pytest

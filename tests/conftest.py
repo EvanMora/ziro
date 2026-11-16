@@ -7,6 +7,10 @@ os.environ.setdefault("SECRET_KEY", "clave-de-pruebas-" + "x" * 32)
 # un fixture, los fixtures que corren antes (p. ej. el que vacía los movimientos) borrarían la base
 # real data/usuarios.sqlite. Pisa cualquier DATABASE_PATH del entorno o del .env.
 os.environ["DATABASE_PATH"] = "sqlite:///:memory:"
+# DATABASE_URL tiene prioridad sobre DATABASE_PATH y en modo producción es obligatoria: también
+# apunta a la base de los tests. Así el load_dotenv() de app/main.py no trae la del .env, y los
+# tests que simulan producción (ENVIRONMENT=production o VERCEL) siguen usando esta base.
+os.environ["DATABASE_URL"] = os.environ["DATABASE_PATH"]
 
 import pytest  # noqa: E402
 

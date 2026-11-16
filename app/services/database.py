@@ -1,4 +1,4 @@
-"""Acceso a la base de datos: SQLite con SQLAlchemy.
+"""Acceso a la base de datos con SQLAlchemy: SQLite en local y en los tests, Postgres desplegada.
 
 Aquí se crea (create_all) el esquema completo de las tablas declaradas en app/models/. Todos los
 servicios leen y escriben en esta base, siempre filtrando por usuario_id.
@@ -6,8 +6,9 @@ servicios leen y escriben en esta base, siempre filtrando por usuario_id.
 SQLite no revisa las claves foráneas si no se le pide en cada conexión: _activar_claves_foraneas lo
 hace, así una fila nunca apunta a un usuario, una cuenta o una categoría que no existe.
 
-La ruta por defecto es data/usuarios.sqlite (carpeta ignorada en .gitignore).
-Se puede cambiar mediante la variable de entorno DATABASE_PATH o DATABASE_URL.
+Qué base se usa (url_base_de_datos): la de DATABASE_URL si existe (la que crean Vercel y Neon, un
+Postgres); si no, la de DATABASE_PATH (una ruta a un archivo SQLite o una URL); y si no hay ninguna,
+data/usuarios.sqlite (carpeta ignorada en .gitignore). En producción DATABASE_URL es obligatoria.
 """
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -19,10 +20,43 @@ from typing import Any
 from sqlalchemy import Engine, StaticPool, create_engine, event, func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.config import es_produccion
 from app.models.categorias import CategoriaDB, PREDETERMINADAS
 
 DATABASE_PATH: Any = os.environ.get("DATABASE_PATH", "data/usuarios.sqlite")
 _motores: dict[str, tuple[Engine, sessionmaker[Session]]] = {}
+
+
+def normalizar_url(url: str) -> str:
+    """Las URL postgres:// y postgresql:// (como las entrega Neon) pasan al driver psycopg 3. Solo
+    cambia el esquema: usuario, contraseña, host y parámetros quedan igual."""
+    for esquema in ("postgres://", "postgresql://"):
+        if url.startswith(esquema):
+            return "postgresql+psycopg://" + url[len(esquema):]
+    return url
+
+
+def es_postgres(url: str) -> bool:
+    return url.startswith("postgresql")
+
+
+def _url_de(ruta: Any) -> str:
+    """Una ruta a un archivo SQLite o una URL completa, como URL de SQLAlchemy."""
+    texto = str(ruta)
+    return normalizar_url(texto) if "://" in texto else f"sqlite:///{texto}"
+
+
+def url_base_de_datos() -> str:
+    """La URL de la base de esta ejecución (ver el orden en el docstring del módulo)."""
+    url = os.environ.get("DATABASE_URL")
+    if url:
+        return normalizar_url(url)
+    if es_produccion():
+        raise RuntimeError("DATABASE_URL es obligatoria en producción: Vercel no guarda archivos, así que "
+                           "SQLite perdería los datos.")
+    # DATABASE_PATH se lee del módulo en cada llamada: los tests lo cambian con monkeypatch.
+    modulo = sys.modules.get(__name__)
+    return _url_de(getattr(modulo, "DATABASE_PATH", None) or DATABASE_PATH)
 
 
 def _activar_claves_foraneas(conexion, _registro) -> None:
@@ -32,35 +66,26 @@ def _activar_claves_foraneas(conexion, _registro) -> None:
 
 
 def obtener_motor_y_sesion(ruta: Any = None) -> tuple[Engine, sessionmaker[Session]]:
-    """Obtiene o inicializa el motor SQLAlchemy y la fábrica de sesiones para la ruta dada."""
-    # Lee dinámicamente DATABASE_PATH por si fue modificado en tests (e.g. monkeypatch)
-    modulo = sys.modules.get(__name__)
-    ruta_val = ruta if ruta is not None else (getattr(modulo, "DATABASE_PATH", None) or DATABASE_PATH)
-    ruta_str = str(ruta_val)
-
-    # Soporte para DATABASE_URL completa o ruta a archivo SQLite
-    if ruta_str.startswith("sqlite:///"):
-        url = ruta_str
-        archivo = ruta_str.replace("sqlite:///", "")
-    elif "://" in ruta_str:
-        url = ruta_str
-        archivo = ""
-    else:
-        url = f"sqlite:///{ruta_str}"
-        archivo = ruta_str
-
-    if archivo and archivo != ":memory:":
-        Path(archivo).parent.mkdir(parents=True, exist_ok=True)
+    """Obtiene o inicializa el motor SQLAlchemy y la fábrica de sesiones: los de la base de esta
+    ejecución (url_base_de_datos) o, si se pasa, los de esa ruta o URL."""
+    url = url_base_de_datos() if ruta is None else _url_de(ruta)
 
     if url not in _motores:
-        en_memoria = url in ("sqlite:///:memory:", "sqlite://")
-        motor = create_engine(
-            url,
-            connect_args={"check_same_thread": False} if "sqlite" in url else {},
-            # En memoria, cada conexión nueva crearía una base VACÍA: comparten una sola.
-            poolclass=StaticPool if en_memoria else None,
-        )
-        if "sqlite" in url:
+        if es_postgres(url):
+            # Neon cierra las conexiones ociosas: se comprueban antes de usarlas y se renuevan
+            # cada 5 minutos, para no heredar una conexión muerta de una instancia dormida.
+            motor = create_engine(url, pool_pre_ping=True, pool_recycle=300)
+        else:
+            archivo = url.removeprefix("sqlite:///")
+            en_memoria = url in ("sqlite:///:memory:", "sqlite://")
+            if url.startswith("sqlite:///") and not en_memoria:
+                Path(archivo).parent.mkdir(parents=True, exist_ok=True)
+            motor = create_engine(
+                url,
+                connect_args={"check_same_thread": False},
+                # En memoria, cada conexión nueva crearía una base VACÍA: comparten una sola.
+                poolclass=StaticPool if en_memoria else None,
+            )
             event.listen(motor, "connect", _activar_claves_foraneas)
         fabrica = sessionmaker(autocommit=False, autoflush=False, bind=motor)
         _motores[url] = (motor, fabrica)

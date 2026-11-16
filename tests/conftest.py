@@ -7,6 +7,7 @@ os.environ.setdefault("SECRET_KEY", "clave-de-pruebas-" + "x" * 32)
 import pytest  # noqa: E402
 
 from app.services import categorias, cuentas, database, ia, limites, movimientos, presupuestos
+from tests import plantilla
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +37,18 @@ def _base_de_datos_de_usuarios_en_memoria(monkeypatch):
     database.reiniciar()
     yield
     database.reiniciar()
+
+
+@pytest.fixture(autouse=True)
+def _usuario_de_prueba(request, monkeypatch, _base_de_datos_de_usuarios_en_memoria):
+    """El usuario 1 con la plantilla de datos (tests/plantilla.py), salvo en los tests marcados
+    sin_plantilla, que prueban el registro, el login o la protección reales."""
+    if request.node.get_closest_marker("sin_plantilla"):
+        yield
+        return
+    plantilla.crear_usuario()
+    plantilla.instalar(monkeypatch)
+    yield
 
 
 @pytest.fixture(autouse=True)

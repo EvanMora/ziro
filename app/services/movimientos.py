@@ -3,10 +3,8 @@
 Guardados en la tabla `movimientos` (modelo app/models/movimientos.py), filtrados por usuario_id.
 Las firmas, los modelos de app/schemas/movimientos.py y las reglas de _validar() se mantienen.
 
-La plantilla de datos de prueba (services/cuentas.py) se siembra en SQL, solo para el usuario
-demo y solo en los meses que aún no tienen ningún movimiento: así cada mes tiene datos y los
-tests con meses fijos dan siempre las mismas cifras. En el mes en curso solo se siembran los
-días que ya pasaron.
+La app no siembra movimientos: cada usuario solo ve los que registró (los datos de prueba de los
+tests están en tests/plantilla.py).
 """
 from datetime import date
 from decimal import Decimal
@@ -27,7 +25,6 @@ from app.schemas.movimientos import (
 from app.services import categorias, cuentas
 from app.services import database
 from app.services.comun import (  # la API los toma de aquí: servicio.ErrorValidacion
-    DEMO_USUARIO_ID,
     ErrorValidacion,
     NoEncontrado,
     limpiar_texto,
@@ -41,25 +38,12 @@ MAX_MONTO = Decimal("1000000000000")
 
 # Las cuentas salen de services/cuentas.py y las categorías de services/categorias.py.
 
-# Plantilla de cada mes: (día, descripción, categoría, cuenta, tipo, monto).
-_PLANTILLA = [
-    (31, "Salario", "Salario", "Cuenta de ahorros", "ingreso", "3200000"),
-    (30, "Supermercado", "Mercado", "Billetera digital", "gasto", "184300"),
-    (28, "Taxi", "Transporte", "Efectivo", "gasto", "62000"),
-    (25, "Arriendo", "Arriendo", "Cuenta de ahorros", "gasto", "1100000"),
-    (22, "Cine", "Ocio", "Billetera digital", "gasto", "48000"),
-    (18, "Cena", "Ocio", "Cuenta de ahorros", "gasto", "132000"),
-    (15, "Plaza de mercado", "Mercado", "Efectivo", "gasto", "200000"),
-    (10, "Recarga tarjeta de transporte", "Transporte", "Billetera digital", "gasto", "148000"),
-]
-
-
 def hoy() -> date:
     return date.today()
 
 
 def reiniciar() -> None:
-    """Vacía la tabla (y vuelve a sembrar predeterminadas). Solo para tests."""
+    """Vacía la base (y vuelve a sembrar las categorías predeterminadas). Solo para tests."""
     database.reiniciar()
 
 
@@ -87,55 +71,6 @@ def _columnas():
     )
 
 
-def _sembrar(usuario_id: int, anio: int, mes: int) -> None:
-    """La plantilla de prueba, en SQL. Solo el usuario demo y solo si el mes está vacío."""
-    if usuario_id != DEMO_USUARIO_ID:
-        return
-    primero = date(anio, mes, 1)
-    if mes == 12:
-        siguiente = date(anio + 1, 1, 1)
-    else:
-        siguiente = date(anio, mes + 1, 1)
-    with database.sesion() as db:
-        cuantos = db.execute(
-            select(func.count(MovimientoDB.id)).where(
-                MovimientoDB.usuario_id == usuario_id,
-                MovimientoDB.fecha >= primero, MovimientoDB.fecha < siguiente,
-            )
-        ).scalar_one()
-        if cuantos:
-            return
-    limite = hoy()
-    ultimo = _ultimo_dia(anio, mes)
-    # De la más vieja a la más nueva, para que los ids crezcan con la fecha. Refs resueltas fuera
-    # de la transacción: puede crear las cuentas demo si la tabla está vacía.
-    filas = []
-    for dia, descripcion, nombre_categoria, nombre_cuenta, tipo, monto in reversed(_PLANTILLA):
-        fecha = date(anio, mes, min(dia, ultimo))
-        ref_cuenta = cuentas.ref_plantilla(nombre_cuenta)  # None si la persona la eliminó
-        if fecha > limite or ref_cuenta is None:
-            continue
-        ref_categoria = categorias.ref(categorias.predeterminada(nombre_categoria))
-        filas.append((ref_cuenta.id, ref_categoria.id, tipo, Decimal(monto), fecha, descripcion))
-    if not filas:
-        return
-    with database.sesion() as db:
-        # Re-chequeo dentro de la transacción: dos peticiones a la vez no siembran dos veces.
-        cuantos = db.execute(
-            select(func.count(MovimientoDB.id)).where(
-                MovimientoDB.usuario_id == usuario_id,
-                MovimientoDB.fecha >= primero, MovimientoDB.fecha < siguiente,
-            )
-        ).scalar_one()
-        if cuantos:
-            return
-        for cuenta_id, categoria_id, tipo, monto, fecha, descripcion in filas:
-            db.add(MovimientoDB(
-                usuario_id=usuario_id, cuenta_id=cuenta_id, categoria_id=categoria_id,
-                tipo=tipo, monto=monto, fecha=fecha, descripcion=descripcion,
-            ))
-
-
 def _coincide(m: Movimiento, f: FiltrosMovimientos, buscar: str) -> bool:
     if f.tipo and m.tipo != f.tipo:
         return False
@@ -154,13 +89,7 @@ def catalogo(usuario_id: int) -> tuple[list[CuentaRef], list[CategoriaRef]]:
 
 
 def desde(usuario_id: int, fecha: date) -> list[Movimiento]:
-    """Los movimientos con fecha >= fecha. Antes siembra cada mes desde ahí hasta hoy, para que
-    los saldos no dependan de qué meses se hayan visitado."""
-    anio, mes = fecha.year, fecha.month
-    limite = hoy()
-    while (anio, mes) <= (limite.year, limite.month):
-        _sembrar(usuario_id, anio, mes)
-        anio, mes = (anio + 1, 1) if mes == 12 else (anio, mes + 1)
+    """Los movimientos con fecha >= fecha, del más viejo al más nuevo."""
     with database.sesion() as db:
         filas = db.execute(
             _columnas().where(MovimientoDB.usuario_id == usuario_id, MovimientoDB.fecha >= fecha)
@@ -170,7 +99,7 @@ def desde(usuario_id: int, fecha: date) -> list[Movimiento]:
 
 
 def usos_por_cuenta(usuario_id: int) -> dict[int, int]:
-    """Cuántos movimientos tiene cada cuenta, en los meses ya sembrados."""
+    """Cuántos movimientos tiene cada cuenta."""
     with database.sesion() as db:
         pares = db.execute(
             select(MovimientoDB.cuenta_id, func.count(MovimientoDB.id))
@@ -193,7 +122,6 @@ def usos_por_categoria(usuario_id: int) -> dict[int, int]:
 
 def listar(usuario_id: int, anio: int, mes: int, filtros: FiltrosMovimientos | None = None) -> ListaMovimientos:
     filtros = filtros or FiltrosMovimientos()
-    _sembrar(usuario_id, anio, mes)
     primero = date(anio, mes, 1)
     ultimo = date(anio + mes // 12, mes % 12 + 1, 1)
     with database.sesion() as db:
@@ -256,8 +184,6 @@ def _validar(usuario_id: int, entrada: MovimientoEntrada) -> tuple[CategoriaRef,
 
 def _guardar(usuario_id: int, id: int, entrada: MovimientoEntrada) -> Movimiento:
     categoria, cuenta, descripcion = _validar(usuario_id, entrada)
-    # Sembrar el mes de destino antes de guardar, para que una siembra posterior no lo pise.
-    _sembrar(usuario_id, entrada.fecha.year, entrada.fecha.month)
     monto = _normalizar_monto(entrada.monto)
     with database.sesion() as db:
         if id is None:

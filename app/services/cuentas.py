@@ -15,10 +15,7 @@ elimina. Nunca se borran movimientos.
 
 Las cuentas y los pagos viven en las tablas `cuentas` y `pagos_tarjeta` (app/models/cuentas.py y
 app/models/pagos_tarjeta.py). Las firmas y los modelos se mantienen.
-
-El usuario demo (id 1) empieza con las tres cuentas que usa la plantilla de
-services/movimientos.py y una tarjeta. Se crean el primer día del mes anterior a hoy(), así solo
-cuentan uno o dos meses de la plantilla y ninguna queda en negativo.
+Una persona nueva empieza sin cuentas.
 """
 from calendar import monthrange
 from datetime import date
@@ -40,7 +37,6 @@ from app.schemas.cuentas import (
 from app.schemas.movimientos import CuentaRef, FiltrosMovimientos, Movimiento
 from app.services import database
 from app.services.comun import (
-    DEMO_USUARIO_ID,
     ErrorValidacion,
     NoEncontrado,
     limpiar_texto,
@@ -51,19 +47,8 @@ from app.web.formato import dinero
 MAX_NOMBRE = 40
 MAX_CUENTAS = 30  # por usuario
 
-# (nombre, tipo, icono, tono, inicial, cupo, dia_pago)
-_DEMO = [
-    ("Cuenta de ahorros", "ahorros", "banco", "azul", "1644400", None, None),
-    ("Billetera digital", "billetera", "celular", "ciruela", "1053300", None, None),
-    ("Efectivo", "efectivo", "billetes", "cafe", "707500", None, None),
-    ("Tarjeta de crédito", "tarjeta", "tarjeta", "violeta", "840000", "3000000", 15),
-]
-# Nombres que usa la plantilla de movimientos → id de la cuenta demo.
-_PLANTILLA = {"Cuenta de ahorros": 1, "Billetera digital": 2, "Efectivo": 3}
-
-
 def reiniciar() -> None:
-    """Vuelve al estado inicial (el demo se crea de nuevo al pedirlo). Solo para tests."""
+    """Vacía la base. Solo para tests."""
     database.reiniciar()
 
 
@@ -81,10 +66,6 @@ def _hoy() -> date:
     return movimientos.hoy()
 
 
-def _mes_anterior(d: date) -> date:
-    return date(d.year - 1, 12, 1) if d.month == 1 else date(d.year, d.month - 1, 1)
-
-
 def _como_cuenta(fila: CuentaDB) -> Cuenta:
     from app.services.movimientos import _normalizar_monto
     return Cuenta(
@@ -95,27 +76,9 @@ def _como_cuenta(fila: CuentaDB) -> Cuenta:
     )
 
 
-def _sembrar_demo(db) -> None:
-    """Las cuentas del usuario demo, solo si no tiene ninguna todavía."""
-    hay = db.execute(
-        select(func.count(CuentaDB.id)).where(CuentaDB.usuario_id == DEMO_USUARIO_ID)
-    ).scalar_one()
-    if hay:
-        return
-    creada_en = _mes_anterior(_hoy())
-    for nombre, tipo, icono, tono, inicial, cupo, dia_pago in _DEMO:
-        db.add(CuentaDB(
-            usuario_id=DEMO_USUARIO_ID, nombre=nombre, tipo=tipo, icono=icono, tono=tono,
-            creada_en=creada_en, inicial=Decimal(inicial),
-            cupo=Decimal(cupo) if cupo else None, dia_pago=dia_pago))
-    db.flush()
-
-
 def listar(usuario_id: int) -> list[Cuenta]:
     """En el orden en que se crearon."""
     with database.sesion() as db:
-        if usuario_id == DEMO_USUARIO_ID:
-            _sembrar_demo(db)
         filas = db.execute(
             select(CuentaDB).where(CuentaDB.usuario_id == usuario_id).order_by(CuentaDB.id)
         ).scalars().all()
@@ -124,13 +87,6 @@ def listar(usuario_id: int) -> list[Cuenta]:
 
 def obtener(usuario_id: int, id: int) -> Cuenta | None:
     return next((c for c in listar(usuario_id) if c.id == id), None)
-
-
-def ref_plantilla(nombre: str) -> CuentaRef | None:
-    """La cuenta demo que usa una fila de la plantilla de movimientos, con su nombre actual.
-    None si la persona la eliminó: esa fila no se siembra."""
-    cuenta = obtener(DEMO_USUARIO_ID, _PLANTILLA[nombre])
-    return ref(cuenta) if cuenta else None
 
 
 def proxima_fecha_pago(dia_pago: int, hoy: date) -> date:

@@ -2,6 +2,7 @@ import os
 import secrets
 import warnings
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -70,6 +71,31 @@ app.add_middleware(
     https_only=os.environ.get("ENVIRONMENT") == "production",
 )
 app.add_exception_handler(SinSesion, sin_sesion)
+
+CABECERAS_SEGURIDAD = {
+    "X-Content-Type-Options": "nosniff",  # el navegador no adivina tipos (un .txt no corre como JS)
+    "X-Frame-Options": "DENY",  # nadie puede meter la app en un iframe para engañar clics
+    "Referrer-Policy": "same-origin",  # las URLs (con mes, filtros, búsquedas) no salen a otros sitios
+}
+
+
+@app.middleware("http")
+async def seguridad(request: Request, call_next):
+    """Cabeceras de seguridad en todo, y la API no acepta cambios pedidos desde otro sitio.
+
+    El navegador manda Origin en las peticiones POST/PUT/DELETE; si no coincide con este host, alguien
+    está intentando usar la sesión de la persona desde otra página (CSRF). La cookie ya es SameSite=Lax:
+    esto es una segunda barrera. Se compara solo host y puerto, porque detrás de un proxy con HTTPS la
+    app puede ver http."""
+    origen = request.headers.get("origin")
+    if (origen is not None and request.method in ("POST", "PUT", "PATCH", "DELETE")
+            and request.url.path.startswith("/api/")
+            and urlsplit(origen).netloc != request.headers.get("host", "")):
+        respuesta = JSONResponse(status_code=403, content={"detail": "Origen no permitido."})
+    else:
+        respuesta = await call_next(request)
+    respuesta.headers.update(CABECERAS_SEGURIDAD)
+    return respuesta
 app.mount("/static", Estaticos(directory=Path(__file__).parent / "static"), name="static")
 app.include_router(views.router)
 app.include_router(api_movimientos.router)

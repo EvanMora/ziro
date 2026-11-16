@@ -3,6 +3,10 @@ import os
 # Antes de importar la app: con una clave fija no avisa que falta, y las cookies firmadas en los
 # tests (tests/test_sesion.py) usan la misma.
 os.environ.setdefault("SECRET_KEY", "clave-de-pruebas-" + "x" * 32)
+# La base de los tests es siempre una en memoria, elegida ANTES de importar la app: si se eligiera en
+# un fixture, los fixtures que corren antes (p. ej. el que vacía los movimientos) borrarían la base
+# real data/usuarios.sqlite. Pisa cualquier DATABASE_PATH del entorno o del .env.
+os.environ["DATABASE_PATH"] = "sqlite:///:memory:"
 
 import pytest  # noqa: E402
 

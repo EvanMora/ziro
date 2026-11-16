@@ -7,6 +7,7 @@
 {% endblock %}
 
 {% block acciones %}
+{% if ia_disponible %}{% include "app/_ordenar_otros.html" %}{% endif %}
 {% with ruta = "categorias" %}{% include "app/_selector_mes.html" %}{% endwith %}
 <button class="btn btn--primary cats-nueva" type="button" aria-label="Nueva categoría" aria-haspopup="dialog"
         data-nueva-categoria>

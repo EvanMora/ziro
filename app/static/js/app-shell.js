@@ -18,6 +18,21 @@
   };
 })();
 
+// Cerrar sesión: borra la sesión en el servidor y vuelve al login (también si falla la red: el login
+// con una sesión aún abierta lleva de nuevo al Resumen, así que nada se pierde).
+(() => {
+  const boton = document.querySelector("[data-logout]");
+  if (!boton) return;
+  boton.addEventListener("click", async () => {
+    boton.disabled = true;
+    try {
+      await fetch("/api/v1/auth/logout", { method: "POST", credentials: "same-origin" });
+    } finally {
+      window.location.assign("/login");
+    }
+  });
+})();
+
 (() => {
   const shell = document.querySelector("[data-shell]");
   if (!shell) return;

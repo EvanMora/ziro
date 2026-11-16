@@ -113,3 +113,26 @@ def test_no_queda_usuario_fijo():
             if archivo.name in ("test_proteccion.py", "test_sin_demo.py"):
                 continue
             assert "USUARIO_DEMO" not in archivo.read_text(encoding="utf-8"), archivo
+
+
+def test_barra_tiene_cerrar_sesion():
+    html = _registrado().get("/resumen").text
+
+    assert "data-logout" in html
+    assert "Cerrar sesión" in html
+
+
+def test_app_shell_cierra_la_sesion():
+    js = (Path(__file__).resolve().parent.parent / "app/static/js/app-shell.js").read_text(encoding="utf-8")
+
+    assert "[data-logout]" in js
+    assert "/api/v1/auth/logout" in js
+
+
+def test_despues_del_logout_vuelve_a_pedir_login():
+    cliente = _registrado()
+    assert cliente.post("/api/v1/auth/logout").status_code == 200
+
+    r = cliente.get("/resumen", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/login"

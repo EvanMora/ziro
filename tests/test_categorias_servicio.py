@@ -9,6 +9,7 @@ from app.schemas.categorias import CategoriaEntrada
 from app.schemas.movimientos import FiltrosMovimientos, MovimientoEntrada
 from app.services import categorias, movimientos
 from app.services.comun import ErrorValidacion, NoEncontrado, NoPermitido
+from tests import plantilla
 
 U = 1
 
@@ -62,6 +63,7 @@ def test_una_categoria_propia_se_usa_en_movimientos():
 
 
 def test_las_categorias_propias_son_de_cada_usuario():
+    plantilla.crear_usuario(2, "otra@correo.com", "Otra Persona")
     creada = nueva(usuario=2)
 
     assert creada not in categorias.listar(U)
@@ -95,6 +97,7 @@ def test_maximo_de_categorias_propias(monkeypatch):
     nueva("Dos")
 
     assert errores(nueva, "Tres") == {"general": "Llegaste al máximo de 2 categorías propias."}
+    plantilla.crear_usuario(2, "otra@correo.com", "Otra Persona")
     assert nueva("Tres", usuario=2).nombre == "Tres"  # el límite es por usuario
 
 

@@ -144,6 +144,7 @@ def _sembrar_presupuesto(usuario_id: int, anio: int, mes: int) -> None:
 
 def instalar(monkeypatch) -> None:
     """Envuelve los servicios para que siembren al usuario de prueba antes de responder."""
+    reiniciar = database.reiniciar
     listar_cuentas = cuentas.listar
     listar_movimientos = movimientos.listar
     desde = movimientos.desde
@@ -180,6 +181,13 @@ def instalar(monkeypatch) -> None:
             _sembrar_presupuesto(usuario_id, anio, mes)
         return del_mes(usuario_id, anio, mes, *args, **kwargs)
 
+    def database_reiniciar():
+        # Muchos tests vacían la base al empezar; el usuario de prueba vuelve a existir enseguida
+        # (sus cuentas, movimientos y presupuestos lo necesitan por la clave foránea).
+        reiniciar()
+        crear_usuario()
+
+    monkeypatch.setattr(database, "reiniciar", database_reiniciar)
     monkeypatch.setattr(cuentas, "listar", cuentas_listar)
     monkeypatch.setattr(movimientos, "listar", movimientos_listar)
     monkeypatch.setattr(movimientos, "desde", movimientos_desde)

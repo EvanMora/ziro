@@ -1,9 +1,10 @@
 """Acceso a la base de datos: SQLite con SQLAlchemy.
 
-Aquí se crea (create_all) el esquema completo de las tablas declaradas en app/models/.
-Por ahora los servicios de cuentas, categorías, movimientos, presupuestos y pagos de tarjeta
-aún leen y escriben en memoria del proceso (ver sus comentarios TODO(backend)); cuando se
-migren, consultar esta misma base.
+Aquí se crea (create_all) el esquema completo de las tablas declaradas en app/models/. Todos los
+servicios leen y escriben en esta base, siempre filtrando por usuario_id.
+
+SQLite no revisa las claves foráneas si no se le pide en cada conexión: _activar_claves_foraneas lo
+hace, así una fila nunca apunta a un usuario, una cuenta o una categoría que no existe.
 
 La ruta por defecto es data/usuarios.sqlite (carpeta ignorada en .gitignore).
 Se puede cambiar mediante la variable de entorno DATABASE_PATH o DATABASE_URL.
@@ -15,13 +16,19 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from sqlalchemy import Engine, StaticPool, create_engine, func, select, text
+from sqlalchemy import Engine, StaticPool, create_engine, event, func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.categorias import CategoriaDB, PREDETERMINADAS
 
 DATABASE_PATH: Any = os.environ.get("DATABASE_PATH", "data/usuarios.sqlite")
 _motores: dict[str, tuple[Engine, sessionmaker[Session]]] = {}
+
+
+def _activar_claves_foraneas(conexion, _registro) -> None:
+    cursor = conexion.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 def obtener_motor_y_sesion(ruta: Any = None) -> tuple[Engine, sessionmaker[Session]]:
@@ -53,6 +60,8 @@ def obtener_motor_y_sesion(ruta: Any = None) -> tuple[Engine, sessionmaker[Sessi
             # En memoria, cada conexión nueva crearía una base VACÍA: comparten una sola.
             poolclass=StaticPool if en_memoria else None,
         )
+        if "sqlite" in url:
+            event.listen(motor, "connect", _activar_claves_foraneas)
         fabrica = sessionmaker(autocommit=False, autoflush=False, bind=motor)
         _motores[url] = (motor, fabrica)
 

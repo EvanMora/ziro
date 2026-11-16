@@ -1,0 +1,133 @@
+{% extends "app/base_app.html" %}
+
+{% block titulo %}Resumen{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ static('css/resumen.css') }}">
+<link rel="stylesheet" href="{{ static('css/presupuesto-barra.css') }}">
+{% endblock %}
+
+{% block acciones %}
+{% if ia_disponible %}{% include "app/_analisis.html" %}{% endif %}
+{% with ruta = "resumen" %}{% include "app/_selector_mes.html" %}{% endwith %}
+{% endblock %}
+
+{% block contenido %}
+{% set mes = resumen.mes | nombre_mes %}
+{# Presupuesto del mes: solo la barra de lo que queda. El detalle está en la sección Presupuestos. #}
+{% if presupuesto.creado %}
+<a class="pres-barra pres-barra--{{ presupuesto.estado }}" href="/presupuestos?anio={{ resumen.anio }}&amp;mes={{ resumen.mes }}" style="--i: 0">
+  <span class="pres-barra__fila">
+    <strong class="pres-barra__titulo num">{{ vista_presupuesto.nota }}</strong>
+    <span class="sub num">de {{ presupuesto.total | dinero }}</span>
+  </span>
+  <span class="pres-pista" role="img" aria-label="Llevas el {{ presupuesto.pct | porcentaje }} del presupuesto">
+    <span class="pres-pista__relleno" style="width: {{ vista_presupuesto.ancho }}%"></span>
+  </span>
+  <span class="sub">Llevas el {{ presupuesto.pct | porcentaje }} del presupuesto de {{ mes }} · <span class="pres-barra__ver">Ver presupuestos</span></span>
+</a>
+{% elif es_mes_actual %}
+<section class="pres-barra pres-barra--vacia" style="--i: 0" aria-label="Presupuesto de {{ mes }}">
+  <span>
+    <strong class="pres-barra__titulo">Nuevo mes, nuevo presupuesto</strong>
+    <span class="sub">Crea el presupuesto de {{ mes }} para ver cuánto te queda.</span>
+  </span>
+  <a class="btn btn--ink" href="/presupuestos/nuevo?anio={{ resumen.anio }}&amp;mes={{ resumen.mes }}&amp;volver=resumen">Crear presupuesto</a>
+</section>
+{% endif %}
+<section class="stage" style="--i: 0" aria-label="Resumen de {{ mes }}">
+  <div class="stage__summary">
+    <p class="label">Saldo total</p>
+    <p class="big">{{ resumen.saldo_total | dinero("auto") }}</p>
+    <a class="link-row" href="/cuentas">
+      {%- if resumen.deuda_tarjetas > 0 -%}
+      Debes <span class="num">{{ resumen.deuda_tarjetas | dinero }}</span> en tarjetas · Ver cuentas
+      {%- else -%}
+      En {{ resumen.cuentas | length }} cuenta{{ "s" if resumen.cuentas | length != 1 }} · Ver cuentas
+      {%- endif -%}
+    </a>
+
+    <div class="stage__split">
+      <div>
+        <p class="label">Ingresos de {{ mes }}</p>
+        <p class="mid num income">{{ resumen.ingresos_mes | dinero("+") }}</p>
+      </div>
+      <div>
+        <p class="label">Gastos de {{ mes }}</p>
+        <p class="mid num">{{ resumen.gastos_mes | dinero("-") }}</p>
+      </div>
+    </div>
+
+    <p class="stage__note">
+      {% if vista.queda >= 0 %}
+      Te quedan <strong class="num">{{ vista.queda | dinero }}</strong> de lo que entró este mes.
+      {% else %}
+      Gastaste <strong class="num">{{ (-vista.queda) | dinero }}</strong> más de lo que entró este mes.
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="stage__chart">
+    <h2 class="card-title">Ingresos vs. gastos</h2>
+    <div class="capsules" role="img"
+         aria-label="Ingresos {{ resumen.ingresos_mes | dinero }}, gastos {{ resumen.gastos_mes | dinero }}">
+      <div class="capsules__col">
+        <span class="capsules__value num">{{ resumen.ingresos_mes | dinero }}</span>
+        <span class="capsule capsule--income" style="height: {{ vista.altura_ingresos }}px"></span>
+      </div>
+      <div class="capsules__col">
+        <span class="capsules__value num">{{ resumen.gastos_mes | dinero }}</span>
+        <span class="capsule capsule--expense" style="height: {{ vista.altura_gastos }}px"></span>
+      </div>
+    </div>
+    <div class="capsules__axis label" aria-hidden="true">
+      <span>Ingresos</span>
+      <span>Gastos{% if resumen.ingresos_mes %} · {{ vista.pct_gastado | porcentaje }}{% endif %}</span>
+    </div>
+  </div>
+</section>
+
+<div class="below" style="--i: 1">
+  <section class="card">
+    <div class="card-head">
+      <h2 class="card-title">Gastos por categoría</h2>
+      <span class="label">{{ mes | capitalize }}</span>
+    </div>
+    <ul class="cats">
+      {% for c in vista.categorias %}
+      <li{% if c.mayor %} class="is-top"{% endif %}>
+        <span>{{ c.nombre }}</span>
+        <span class="num">{{ c.total | dinero }}<span class="cats__pct">{{ c.pct | porcentaje }}</span></span>
+        <span class="cats__bar" style="width: {{ c.ancho }}%" aria-hidden="true"></span>
+      </li>
+      {% else %}
+      <li class="cats__empty">No hay gastos en {{ mes }}.</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 class="card-title">Recientes</h2>
+      <a class="link-row" href="/movimientos">Ver todos</a>
+    </div>
+    <ul class="rows">
+      {% for m in resumen.movimientos_recientes %}
+      <li>
+        <span class="rows__name">
+          <span class="icon-bubble">{{ iconos.categoria(m.categoria.nombre) }}</span>
+          <span>{{ m.descripcion or m.categoria.nombre }}<span class="sub">{{ m.fecha | fecha_corta }} · {{ m.cuenta.nombre }}</span></span>
+        </span>
+        {% if m.tipo == "ingreso" %}
+        <span class="num income">{{ m.monto | dinero("+") }}</span>
+        {% else %}
+        <span class="num">{{ m.monto | dinero("-") }}</span>
+        {% endif %}
+      </li>
+      {% else %}
+      <li class="cats__empty">No hay movimientos en {{ mes }}.</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

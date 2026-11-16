@@ -1,0 +1,78 @@
+{% extends "app/base_app.html" %}
+
+{% block titulo %}Categorías{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ static('css/categorias.css') }}">
+{% endblock %}
+
+{% block acciones %}
+{% if ia_disponible %}{% include "app/_ordenar_otros.html" %}{% endif %}
+{% with ruta = "categorias" %}{% include "app/_selector_mes.html" %}{% endwith %}
+<button class="btn btn--primary cats-nueva" type="button" aria-label="Nueva categoría" aria-haspopup="dialog"
+        data-nueva-categoria>
+  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+  <span class="cats-nueva__texto">Nueva categoría</span>
+</button>
+{% endblock %}
+
+{% macro conteo(n) -%}
+{{ "Sin movimientos" if n == 0 else ("1 movimiento" if n == 1 else "%d movimientos" % n) }}
+{%- endmacro %}
+
+{% block contenido %}
+{% set mes = datos.mes | nombre_mes %}
+<div class="cats-grid" data-categorias{% if guardado %} data-guardado="{{ guardado }}"{% endif %}>
+  {% for g in vista.grupos %}
+  <section class="card" style="--i: {{ loop.index0 }}" aria-labelledby="grupo-{{ g.tipo }}">
+    <div class="card-head">
+      <h2 class="card-title" id="grupo-{{ g.tipo }}">{{ g.titulo }}</h2>
+      <span class="label">{{ mes | capitalize }} · <span class="num">{{ g.total | dinero }}</span></span>
+    </div>
+    <ul class="rows cats-list">
+      {% for fila in g.filas %}
+      {% set f = fila.f %}
+      {% set c = f.categoria %}
+      <li data-id="{{ c.id }}">
+        <a class="cats-list__link" href="/movimientos?anio={{ datos.anio }}&amp;mes={{ datos.mes }}&amp;categoria={{ c.id }}"
+           aria-label="{{ c.nombre }}: ver sus movimientos de {{ mes }}">
+          <span class="rows__name">
+            <span class="icon-bubble">{{ iconos.categoria(c.nombre) }}</span>
+            <span class="cats-list__nombre">{{ c.nombre }}<span class="sub">{{ conteo(f.movimientos) }}
+              {%- if f.total %} · {{ fila.pct | porcentaje }}{% endif %}</span></span>
+          </span>
+          {% if not f.total %}
+          <span class="num cats-list__cero">{{ f.total | dinero }}</span>
+          {% elif c.tipo == "ingreso" %}
+          <span class="num income">{{ f.total | dinero("+") }}</span>
+          {% else %}
+          <span class="num">{{ f.total | dinero("-") }}</span>
+          {% endif %}
+        </a>
+        {% if c.predeterminada %}
+        <span class="cats-list__hueco" aria-hidden="true"></span>
+        {% else %}
+        <button class="cats-list__editar" type="button" aria-label="Editar {{ c.nombre }}" aria-haspopup="dialog"
+                title="Editar" data-editar-categoria data-categoria='{{ fila.datos | tojson }}'>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l.8-3.2 6.9-6.9a1.1 1.1 0 0 1 1.6 0l.8.8a1.1 1.1 0 0 1 0 1.6l-6.9 6.9z"/></svg>
+        </button>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+</div>
+
+<p class="sub cats-nota" style="--i: 2">
+  Toca una categoría para ver sus movimientos. Las que tienen lápiz son tuyas: puedes renombrarlas o
+  eliminarlas. Las predeterminadas no se cambian.
+</p>
+{% endblock %}
+
+{% block dialogos %}{% include "app/_dialogo_categoria.html" %}{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ static('js/categorias.js') }}" defer></script>
+{% endblock %}

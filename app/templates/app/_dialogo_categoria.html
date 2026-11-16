@@ -1,0 +1,78 @@
+{#
+  Diálogo "Nueva categoría" / "Editar categoría" de la sección Categorías. Lo maneja
+  static/js/categorias.js, que guarda con la API JSON (/api/v1/categorias). Mismos componentes
+  que el diálogo de movimientos: segmentado, campo flotante, errores por campo y confirmación.
+  Espera "catalogo_categorias" para la lista "Pasar sus movimientos a".
+#}
+<dialog class="dialog" id="dialogo-categoria" aria-labelledby="cat-titulo" data-dialogo-categoria>
+  <form class="dialog__body" data-form-categoria novalidate>
+    <header class="dialog__head">
+      <h2 class="card-title" id="cat-titulo" data-titulo>Nueva categoría</h2>
+      <button class="dialog__close" type="button" aria-label="Cerrar" data-cerrar>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </header>
+
+    <div class="alert alert--danger" role="alert" data-form-alert hidden></div>
+
+    <div class="field">
+      <fieldset class="segmented dialog__tipo" aria-describedby="cat-tipo-error">
+        <legend class="visually-hidden">Tipo</legend>
+        <label class="segmented__option">
+          <input type="radio" name="tipo" value="gasto" checked>
+          <span>Gasto</span>
+        </label>
+        <label class="segmented__option">
+          <input type="radio" name="tipo" value="ingreso">
+          <span>Ingreso</span>
+        </label>
+      </fieldset>
+      <p class="field__message" data-tipo-fijo hidden>Ya tiene movimientos, así que el tipo no se puede cambiar.</p>
+      <p class="field__message field__message--error" id="cat-tipo-error" hidden></p>
+    </div>
+
+    <div class="field">
+      <div class="float-field">
+        <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10.5 3H16a1 1 0 0 1 1 1v5.5L9.5 17 3 10.5z"/><circle cx="13.5" cy="6.5" r="1.2"/></svg>
+        <input class="float-field__input" id="cat-nombre" name="nombre" type="text" maxlength="40"
+               autocomplete="off" placeholder=" " aria-describedby="cat-nombre-error" required>
+        <label class="float-field__label" for="cat-nombre">Nombre</label>
+      </div>
+      <p class="field__message field__message--error" id="cat-nombre-error" hidden></p>
+    </div>
+
+    <div class="dialog__actions">
+      <button class="btn btn--primary btn--lg btn--block" type="submit" data-guardar>
+        <span class="spinner" aria-hidden="true"></span>
+        <svg class="btn__check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" pathLength="1"/></svg>
+        <span data-label>Guardar</span>
+      </button>
+      <button class="dialog__delete" type="button" data-eliminar hidden>Eliminar categoría</button>
+    </div>
+  </form>
+
+  <div class="dialog__body dialog__confirm" data-confirmar hidden>
+    <h2 class="card-title">Eliminar categoría</h2>
+    <p data-confirmar-texto></p>
+
+    <div class="field" data-mover hidden>
+      <label class="field__label" for="cat-mover">Pasar sus movimientos a</label>
+      <select class="select select--lg" id="cat-mover" name="mover_a" aria-describedby="cat-mover-error">
+        <option value="">Elige una</option>
+        {% for c in catalogo_categorias %}
+        <option value="{{ c.id }}" data-tipo="{{ c.tipo }}">{{ c.nombre }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__message field__message--error" id="cat-mover-error" hidden></p>
+    </div>
+
+    <div class="alert alert--danger" role="alert" data-confirmar-alert hidden></div>
+    <div class="dialog__actions dialog__actions--row">
+      <button class="btn btn--outline btn--lg" type="button" data-cancelar>Cancelar</button>
+      <button class="btn btn--danger btn--lg" type="button" data-confirmar-eliminar>
+        <span class="spinner" aria-hidden="true"></span>
+        <span data-label>Eliminar</span>
+      </button>
+    </div>
+  </div>
+</dialog>

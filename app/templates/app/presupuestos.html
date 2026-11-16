@@ -1,0 +1,138 @@
+{% extends "app/base_app.html" %}
+
+{# Presupuestos del mes: un calendario con lo que se gastó cada día y, debajo, una barra por
+   categoría con lo gastado y lo que queda. Tocar un día muestra sus gastos. #}
+
+{% block titulo %}Presupuestos{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ static('css/presupuesto-barra.css') }}">
+<link rel="stylesheet" href="{{ static('css/presupuestos.css') }}">
+{% endblock %}
+
+{% block acciones %}
+{% with ruta = "presupuestos" %}{% include "app/_selector_mes.html" %}{% endwith %}
+{% if datos.creado %}
+<a class="btn btn--outline pres-editar" href="/presupuestos/nuevo?anio={{ datos.anio }}&amp;mes={{ datos.mes }}"
+   aria-label="Editar presupuesto" title="Editar presupuesto">
+  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l.8-3.2 6.9-6.9a1.1 1.1 0 0 1 1.6 0l.8.8a1.1 1.1 0 0 1 0 1.6l-6.9 6.9z"/></svg>
+  <span class="pres-editar__texto">Editar presupuesto</span>
+</a>
+{% endif %}
+{% endblock %}
+
+{% block contenido %}
+{% set mes = datos.mes | nombre_mes %}
+{% if not datos.creado %}
+<section class="card pres-vacio" style="--i: 0" aria-labelledby="pres-vacio-titulo">
+  <span class="pres-vacio__icono" aria-hidden="true">{{ iconos.seccion("presupuestos") }}</span>
+  <h2 class="card-title" id="pres-vacio-titulo">Añade un presupuesto</h2>
+  <p class="sub">
+    {% if es_mes_actual %}Ponle un límite a cada categoría de gasto de {{ mes }} y mira cuánto te queda.
+    {% else %}{{ mes | capitalize }} de {{ datos.anio }} no tiene presupuesto. Puedes crearlo para compararlo con lo que gastaste.{% endif %}
+  </p>
+  <a class="btn btn--primary" href="/presupuestos/nuevo?anio={{ datos.anio }}&amp;mes={{ datos.mes }}">Crear presupuesto</a>
+</section>
+{% else %}
+<section class="card pres-cal" style="--i: 0" aria-labelledby="pres-cal-titulo" data-calendario>
+  <div class="card-head">
+    <h2 class="card-title" id="pres-cal-titulo">{{ "Gastos en lo que va de " ~ mes if es_mes_actual else "Gastos de " ~ mes }}</h2>
+    <span class="label"><span class="num">{{ cal.total | dinero }}</span> en {{ cal.dias_con_gasto }} día{{ "s" if cal.dias_con_gasto != 1 }}</span>
+  </div>
+
+  <div class="pres-cal__cuerpo">
+    <table class="pres-cal__tabla">
+      <caption class="visually-hidden">Gastos de cada día de {{ mes }} de {{ datos.anio }}</caption>
+      <thead>
+        <tr>{% for d in cal.encabezado %}<th scope="col">{{ d }}</th>{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for semana in cal.semanas %}
+        <tr>
+          {% for c in semana %}
+          {% if c is none %}
+          <td class="pres-hueco"></td>
+          {% else %}
+          <td>
+            {% set clases = "pres-dia pres-dia--n" ~ c.nivel ~ (" is-hoy" if c.hoy else "") ~ (" is-futuro" if c.futuro else "") %}
+            {% if c.total > 0 %}
+            <button class="{{ clases }}" type="button" data-dia="{{ c.iso }}" aria-pressed="false"
+                    aria-label="{{ c.dia }} de {{ mes }}: {{ c.total | dinero }} en {{ c.movimientos }} gasto{{ 's' if c.movimientos != 1 }}">
+              <span class="pres-dia__num">{{ c.dia }}</span>
+              <span class="pres-dia__monto num">{{ c.corto }}</span>
+            </button>
+            {% else %}
+            <span class="{{ clases }}"><span class="pres-dia__num">{{ c.dia }}</span></span>
+            {% endif %}
+          </td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <aside class="pres-detalle" aria-live="polite" data-detalle>
+      <p class="sub" data-detalle-vacio {% if cal.inicial %}hidden{% endif %}>Toca un día para ver en qué se fue la plata.</p>
+      <div data-detalle-contenido hidden>
+        <p class="label" data-detalle-titulo></p>
+        <p class="mid num" data-detalle-total></p>
+        <ul class="rows pres-detalle__lista" data-detalle-lista></ul>
+      </div>
+    </aside>
+  </div>
+
+  <p class="sub pres-cal__datos">
+    Promedio por día: <span class="num">{{ cal.promedio | dinero }}</span>
+    {% if cal.mayor %} · El día que más gastaste: {{ cal.mayor.fecha | fecha_corta }} (<span class="num">{{ cal.mayor.total | dinero }}</span>){% endif %}
+  </p>
+  <script type="application/json" data-dias>{{ {"inicial": cal.inicial, "dias": cal.detalle} | tojson }}</script>
+</section>
+
+<section class="card pres-cats" style="--i: 1" aria-labelledby="pres-cats-titulo">
+  <div class="card-head">
+    <h2 class="card-title" id="pres-cats-titulo">Por categoría</h2>
+    <span class="label">{{ mes | capitalize }}</span>
+  </div>
+
+  <div class="pres-total pres-barra--{{ datos.estado }}">
+    <p class="pres-fila">
+      <strong class="num">{{ vista.nota }}</strong>
+      <span class="sub num">{{ datos.gastado | dinero }} de {{ datos.total | dinero }} · {{ datos.pct | porcentaje }}</span>
+    </p>
+    <span class="pres-pista pres-pista--gruesa" role="img" aria-label="Total: {{ datos.pct | porcentaje }} gastado">
+      <span class="pres-pista__relleno" style="width: {{ vista.ancho }}%"></span>
+    </span>
+  </div>
+
+  <ul class="pres-barras">
+    {% for fila in vista.categorias %}
+    {% set c = fila.c %}
+    <li class="pres-barra--{{ c.estado }}" style="--j: {{ loop.index0 }}">
+      <div class="pres-fila">
+        <span class="rows__name">
+          <span class="icon-bubble">{{ iconos.categoria(c.categoria.nombre) }}</span>
+          <span>{{ c.categoria.nombre }}<span class="sub pres-nota--{{ c.estado }}">{{ fila.nota }}</span></span>
+        </span>
+        <span class="pres-fila__cifras">
+          <span class="num">{{ c.gastado | dinero }} <span class="sub">de {{ c.limite | dinero }}</span></span>
+          <span class="pres-fila__pct num">{{ c.pct | porcentaje }}</span>
+        </span>
+      </div>
+      <span class="pres-pista" role="img" aria-label="{{ c.categoria.nombre }}: {{ c.pct | porcentaje }} gastado">
+        <span class="pres-pista__relleno" style="width: {{ fila.ancho }}%"></span>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if datos.sin_presupuesto > 0 %}
+  <p class="sub pres-aparte">Además gastaste <span class="num">{{ datos.sin_presupuesto | dinero }}</span> en categorías sin presupuesto.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ static('js/presupuestos-calendario.js') }}" defer></script>
+{% endblock %}

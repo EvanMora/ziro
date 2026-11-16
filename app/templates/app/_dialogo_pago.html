@@ -1,0 +1,79 @@
+{#
+  Diálogo "Registrar pago" / "Editar pago" de una tarjeta de crédito. Lo maneja
+  static/js/pago-dialogo.js, que guarda con la API JSON (/api/v1/cuentas/{id}/pagos y
+  /api/v1/pagos/{id}). Se usa en Cuentas (botón "Registrar pago") y en Movimientos (fila de un pago).
+  Espera "pago" (presentacion.datos_pago): cuentas de dinero con saldo y tarjetas con deuda.
+#}
+<dialog class="dialog" id="dialogo-pago" aria-labelledby="pago-titulo" data-dialogo-pago
+        data-cuentas-dinero='{{ pago.dinero | tojson }}' data-tarjetas='{{ pago.tarjetas | tojson }}'>
+  <form class="dialog__body" data-form-pago novalidate>
+    <header class="dialog__head">
+      <div>
+        <h2 class="card-title" id="pago-titulo" data-titulo>Registrar pago</h2>
+        <p class="sub pago-detalle" data-detalle></p>
+      </div>
+      <button class="dialog__close" type="button" aria-label="Cerrar" data-cerrar>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </header>
+
+    <div class="alert alert--danger" role="alert" data-form-alert hidden></div>
+
+    <div class="field">
+      <div class="float-field">
+        <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M13 6.5c-.6-1-1.7-1.5-3-1.5-1.8 0-3 .9-3 2.3 0 3.2 6 1.8 6 5.1 0 1.4-1.3 2.4-3 2.4-1.4 0-2.6-.6-3.2-1.6M10 3v14"/></svg>
+        <input class="float-field__input dialog__monto num" id="pago-monto" name="monto" type="text"
+               inputmode="numeric" autocomplete="off" placeholder=" " aria-describedby="pago-monto-error" required>
+        <label class="float-field__label" for="pago-monto">Cuánto pagas</label>
+      </div>
+      <p class="field__message field__message--error" id="pago-monto-error" hidden></p>
+      <div class="pago-rapido">
+        <button class="btn btn--outline" type="button" data-pagar-todo>Pagar todo · <span class="num" data-todo></span></button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="pago-origen">Desde</label>
+      <select class="select select--lg" id="pago-origen" name="cuenta_origen_id" aria-describedby="pago-origen-error" required>
+        <option value="">Elige una</option>
+        {% for c in pago.dinero %}
+        <option value="{{ c.id }}" data-saldo="{{ c.saldo }}">{{ c.nombre }} · {{ c.saldo | dinero("auto") }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__message field__message--error" id="pago-origen-error" hidden></p>
+    </div>
+
+    <div class="field">
+      <div class="float-field">
+        <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="3"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg>
+        <input class="float-field__input" id="pago-fecha" name="fecha" type="date" max="{{ hoy_iso }}"
+               value="{{ hoy_iso }}" placeholder=" " aria-describedby="pago-fecha-error" required>
+        <label class="float-field__label" for="pago-fecha">Fecha</label>
+      </div>
+      <p class="field__message field__message--error" id="pago-fecha-error" hidden></p>
+    </div>
+
+    <div class="dialog__actions">
+      <button class="btn btn--primary btn--lg btn--block" type="submit" data-guardar>
+        <span class="spinner" aria-hidden="true"></span>
+        <svg class="btn__check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" pathLength="1"/></svg>
+        <span data-label>Registrar pago</span>
+      </button>
+      <p class="sub pago-despues" aria-live="polite" data-despues></p>
+      <button class="dialog__delete" type="button" data-eliminar hidden>Eliminar pago</button>
+    </div>
+  </form>
+
+  <div class="dialog__body dialog__confirm" data-confirmar hidden>
+    <h2 class="card-title">Eliminar pago</h2>
+    <p data-confirmar-texto></p>
+    <div class="alert alert--danger" role="alert" data-confirmar-alert hidden></div>
+    <div class="dialog__actions dialog__actions--row">
+      <button class="btn btn--outline btn--lg" type="button" data-cancelar>Cancelar</button>
+      <button class="btn btn--danger btn--lg" type="button" data-confirmar-eliminar>
+        <span class="spinner" aria-hidden="true"></span>
+        <span data-label>Eliminar</span>
+      </button>
+    </div>
+  </div>
+</dialog>

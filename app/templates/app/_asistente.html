@@ -1,0 +1,45 @@
+{#
+  Asistente de Movimientos con Gemini, en la barra superior: botón "Asistente ▾" que despliega un
+  panel para escribir un gasto o ingreso con tus palabras. Al completar, abre el diálogo "Nuevo
+  movimiento" ya lleno para que el usuario lo revise y guarde (nunca guarda solo). Abrir y cerrar lo
+  maneja static/js/desplegable.js; lo demás, static/js/asistente.js, que usa la API de
+  window.dialogoMovimiento. Solo se incluye si hay GEMINI_API_KEY ("ia_disponible").
+#}
+<div class="asistente" data-asistente data-desplegable>
+  <button class="asistente__boton" type="button" aria-expanded="false" aria-controls="asistente-panel"
+          aria-label="Asistente" data-desplegable-boton>
+    <svg class="ia-icono" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z"/></svg>
+    <span class="asistente__etiqueta">Asistente</span>
+    <svg class="asistente__flecha" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5l3-3"/></svg>
+  </button>
+
+  <div class="asistente__panel" id="asistente-panel" role="dialog" aria-labelledby="asistente-titulo"
+       data-desplegable-panel hidden>
+    <div>
+      <p class="asistente__titulo" id="asistente-titulo">Registrar con tus palabras</p>
+      <p class="asistente__texto">Escribe un gasto o ingreso y lo dejo listo para que lo revises antes de guardar.</p>
+    </div>
+
+    <form class="ia-fila" data-asistente-form novalidate>
+      <label class="visually-hidden" for="asistente-frase">Gasto o ingreso</label>
+      <input class="ia-input" id="asistente-frase" type="text" maxlength="300" autocomplete="off"
+             placeholder="Ej.: ayer 45.000 en taxi" aria-describedby="asistente-mensaje" data-asistente-texto>
+      <button class="btn btn--ink ia-boton" type="submit" data-asistente-completar>
+        <span class="spinner" aria-hidden="true"></span>
+        <svg class="ia-icono" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z"/></svg>
+        <span>Completar</span>
+      </button>
+    </form>
+    <p class="field__message" id="asistente-mensaje" role="status" data-asistente-mensaje hidden></p>
+
+    <div class="asistente__ejemplos">
+      <p class="label">Prueba con</p>
+      <ul>
+        <li><button type="button" class="asistente__ejemplo" data-ejemplo>Almuerzo de 25 mil hoy</button></li>
+        <li><button type="button" class="asistente__ejemplo" data-ejemplo>Ayer 18.000 en taxi en efectivo</button></li>
+        <li><button type="button" class="asistente__ejemplo" data-ejemplo>Me pagaron el salario, 3.200.000</button></li>
+      </ul>
+    </div>
+  </div>
+</div>
+<script src="{{ static('js/asistente.js') }}" defer></script>

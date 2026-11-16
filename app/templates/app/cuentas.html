@@ -1,0 +1,139 @@
+{% extends "app/base_app.html" %}
+
+{% block titulo %}Cuentas{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ static('css/cuentas.css') }}">
+{% endblock %}
+
+{% block acciones %}
+<button class="btn btn--primary cuentas-nueva" type="button" aria-label="Nueva cuenta" aria-haspopup="dialog"
+        data-nueva-cuenta>
+  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+  <span class="cuentas-nueva__texto">Nueva cuenta</span>
+</button>
+{% endblock %}
+
+{% macro firmado(valor, clase="mid") -%}
+{# Positivo o cero: verde con "+". Negativo: color de texto con "−" (nunca rojo). #}
+<span class="{{ clase }} num{% if valor >= 0 %} income{% endif %}">{{ valor | dinero("+" if valor >= 0 else "-") }}</span>
+{%- endmacro %}
+
+{% macro icono(c) -%}
+<span class="cuenta-icono tono-{{ c.tono }}">{{ iconos.cuenta(c.icono) }}</span>
+{%- endmacro %}
+
+{% block contenido %}
+{% if not vista.hay_cuentas %}
+<section class="pending" style="--i: 0">
+  <span class="pending__icon" aria-hidden="true">{{ iconos.seccion("cuentas") }}</span>
+  <h2 class="card-title">Todavía no tienes cuentas</h2>
+  <p>Agrega dónde tienes tu plata (banco, Nequi, efectivo) y tus tarjetas de crédito para ver cuánto tienes y cuánto debes.</p>
+  <button class="btn btn--outline btn--lg" type="button" data-nueva-cuenta>Crear una cuenta</button>
+</section>
+{% else %}
+
+<section class="card cuentas-totales{% if not panel.tarjetas %} cuentas-totales--solo{% endif %}" style="--i: 0"
+         aria-label="Totales">
+  <div>
+    <p class="label">Tienes en total</p>
+    <p class="big">{{ panel.tienes | dinero("auto") }}</p>
+  </div>
+  {% if panel.tarjetas %}
+  <div>
+    <p class="label">Debes en tarjetas</p>
+    <p class="mid num">{{ panel.debes | dinero("-" if panel.debes > 0 else "") }}</p>
+  </div>
+  <div>
+    <p class="label">Te queda</p>
+    <p>{{ firmado(panel.te_queda) }}</p>
+  </div>
+  {% endif %}
+</section>
+
+<div class="cuentas-grid" data-cuentas{% if guardado %} data-guardado="{{ guardado }}"{% endif %}>
+  <section class="card cuentas-dinero" style="--i: 1" aria-labelledby="titulo-dinero">
+    <div class="card-head">
+      <h2 class="card-title" id="titulo-dinero">Dinero</h2>
+      <span class="label">{{ vista.dinero | length }} cuenta{{ "s" if vista.dinero | length != 1 }}</span>
+    </div>
+    <ul class="rows cuentas-lista">
+      {% for fila in vista.dinero %}
+      {% set c = fila.c %}
+      <li class="cuentas-fila" data-id="{{ c.cuenta.id }}" data-editar-cuenta data-cuenta='{{ fila.datos | tojson }}'>
+        <span class="rows__name">
+          {{ icono(c.cuenta) }}
+          <span class="cuentas-nombre">{{ c.cuenta.nombre }}<span class="sub">{{ fila.tipo }}</span></span>
+        </span>
+        <span class="num">{{ c.saldo | dinero("auto") }}</span>
+      </li>
+      {% else %}
+      <li class="cuentas-vacio">
+        <p class="sub">Agrega dónde tienes tu plata: banco, billetera digital o efectivo.</p>
+        <button class="btn btn--outline" type="button" data-nueva-cuenta data-grupo="dinero">Agregar cuenta</button>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card cuentas-tarjetas" style="--i: 2" aria-labelledby="titulo-tarjetas">
+    <div class="card-head">
+      <h2 class="card-title" id="titulo-tarjetas">Tarjetas de crédito</h2>
+      {% if vista.tarjetas %}<span class="label">Por fecha de pago</span>{% endif %}
+    </div>
+    <ul class="rows cuentas-lista">
+      {% for fila in vista.tarjetas %}
+      {% set t = fila.c %}
+      <li class="cuentas-tarjeta" data-id="{{ t.cuenta.id }}">
+        <div class="cuentas-fila" data-editar-cuenta data-cuenta='{{ fila.datos | tojson }}'>
+          <span class="rows__name">
+            {{ icono(t.cuenta) }}
+            <span class="cuentas-nombre">{{ t.cuenta.nombre }}<span class="sub">
+              {%- if fila.con_deuda -%}
+              Pagar antes del {{ t.fecha_limite | fecha_corta }} · <span class="cuentas-fecha{% if fila.alerta %} cuentas-fecha--alerta{% endif %}">{{ fila.texto_fecha }}</span>
+              {%- else -%}
+              {{ fila.texto_fecha }}
+              {%- endif -%}
+            </span></span>
+          </span>
+          {% if fila.con_deuda %}
+          <span class="num">{{ t.saldo | dinero("-") }}</span>
+          {% else %}
+          <span class="num cuentas-cero">{{ t.saldo | dinero("auto") }}</span>
+          {% endif %}
+        </div>
+        <div class="cuentas-barra" role="img" aria-label="Cupo usado: {{ fila.pct_usado | porcentaje }}">
+          <span style="width: {{ fila.pct_usado }}%"></span>
+        </div>
+        <div class="cuentas-tarjeta__pie">
+          {% if fila.excedido %}
+          <span class="sub cuentas-excedido">Pasaste el cupo por {{ (-t.disponible) | dinero }}</span>
+          {% else %}
+          <span class="sub">Disponible {{ t.disponible | dinero }} de {{ t.cuenta.cupo | dinero }}</span>
+          {% endif %}
+          <button class="btn btn--ink cuentas-pagar" type="button" aria-haspopup="dialog" data-registrar-pago
+                  data-tarjeta-id="{{ t.cuenta.id }}"{% if not fila.con_deuda %} disabled{% endif %}>Registrar pago</button>
+        </div>
+      </li>
+      {% else %}
+      <li class="cuentas-vacio">
+        <p class="sub">Agrega tus tarjetas para ver cuánto debes y hasta cuándo puedes pagar.</p>
+        <button class="btn btn--outline" type="button" data-nueva-cuenta data-grupo="tarjeta">Agregar tarjeta</button>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block dialogos %}
+{% include "app/_dialogo_cuenta.html" %}
+{% include "app/_dialogo_pago.html" %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ static('js/cuentas.js') }}" defer></script>
+<script src="{{ static('js/pago-dialogo.js') }}" defer></script>
+{% endblock %}

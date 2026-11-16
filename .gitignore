@@ -31,3 +31,6 @@ htmlcov/
 .idea/
 *.swp
 *.swo
+
+# Bocetos y espacios de trabajo de Claude Code (superpowers)
+.superpowers/

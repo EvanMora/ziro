@@ -1,0 +1,148 @@
+/*
+ * Design tokens de la app de finanzas personales.
+ *
+ * Dirección visual tomada de docs/design-referencia.md (galería clara: tarjetas blancas
+ * de 28px sobre fondo gris, sin sombras, un solo azul de acción) y adaptada a un
+ * dashboard. Las reglas de uso y el porqué de cada decisión están en docs/design-system.md.
+ * Importar este archivo antes que cualquier otra hoja de estilos.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---------- Superficies ---------- */
+  --color-canvas: #f5f5f7;          /* fondo de la app */
+  --color-surface: #ffffff;         /* tarjetas, barra de navegación, modales */
+  --color-surface-raised: #fafafc;  /* menús desplegados y popovers */
+  --color-fill-muted: #e6e6e8;      /* controles deshabilitados, pista de barras de progreso */
+
+  /* ---------- Texto ---------- */
+  --color-text: #1d1d1f;            /* 15.5:1 sobre canvas */
+  --color-text-secondary: #707070;  /* 4.95:1 sobre blanco, 4.55:1 sobre canvas */
+
+  /* ---------- Bordes ---------- */
+  --color-border: #d6d6d6;          /* separadores de 1px, solo decorativos */
+  --color-border-strong: #86868b;   /* contorno de inputs y del botón secundario (3.3:1) */
+
+  /* ---------- Acción: roles estrictos ---------- */
+  --color-primary: #0071e3;         /* SOLO relleno del botón primario */
+  --color-primary-hover: #0068d1;   /* hover del botón primario: más oscuro para ganar contraste (5.4:1) */
+  --color-on-primary: #ffffff;      /* texto sobre el botón primario (4.7:1) */
+  --color-link: #0066cc;            /* enlaces y acciones de texto (5.1:1 sobre canvas) */
+  --focus-ring: 0 0 0 3px rgba(0, 113, 227, 0.35);
+
+  /* ---------- Semánticos de finanzas: cada color con su fondo ---------- */
+  --color-income: #1e7d37;          /* montos de ingreso, progreso de metas (4.7:1+) */
+  --color-income-bg: #edf7f0;
+  --color-warning: #c93400;         /* presupuesto al 80 % o más (4.8:1+) */
+  --color-warning-bg: #fdf1e8;
+  --color-danger: #d70015;          /* presupuesto excedido, errores, acciones destructivas (4.8:1+) */
+  --color-danger-bg: #fdeeed;
+
+  /* ---------- Tonos de los íconos de cuentas ----------
+     Única excepción a "no usamos colores categóricos": solo en el cuadrado del ícono de una cuenta,
+     nunca en montos, barras, texto ni fondos. Trazo 4.5:1+ sobre su fondo y lejos del verde de
+     ingreso, el naranja de alerta y el rojo de error (tests/test_tonos.py). */
+  --tono-azul: #1f4e9a;
+  --tono-azul-bg: #e4ecf9;
+  --tono-indigo: #3a3f9e;
+  --tono-indigo-bg: #e7e8f8;
+  --tono-violeta: #5b2fa6;
+  --tono-violeta-bg: #eee6f8;
+  --tono-ciruela: #8a2a68;
+  --tono-ciruela-bg: #f5e4f0;
+  --tono-petroleo: #1d5a68;
+  --tono-petroleo-bg: #e0eef1;
+  --tono-cafe: #6e4a2f;
+  --tono-cafe-bg: #f1e8e1;
+  --tono-arena: #6b5a1e;
+  --tono-arena-bg: #f3eedc;
+  --tono-grafito: #3a3a40;
+  --tono-grafito-bg: #ebebee;
+
+  /* ---------- Tipografía ---------- */
+  /* Inter primero: en Chromium para Linux (comprobado), -apple-system y BlinkMacSystemFont
+     equivalen a la fuente del sistema y taparían a Inter. Se conservan como respaldo.
+     "Inter Fallback" (styles.css) es Arial ajustada a las medidas de Inter: es lo que se ve
+     mientras Inter se descarga, sin que el texto salte al cambiar. */
+  --font-display: "Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-text: "Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --numeric: tabular-nums;          /* usar en todo monto para que las cifras queden alineadas */
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;           /* títulos; la referencia nunca usa 700 */
+
+  /* Escala: tamaño / interlineado / tracking */
+  --text-caption: 12px;   --leading-caption: 1.33;  --tracking-caption: -0.12px;   /* etiquetas, fechas, notas */
+  --text-small: 14px;     --leading-small: 1.29;    --tracking-small: -0.224px;    /* tablas, botones, inputs */
+  --text-body: 17px;      --leading-body: 1.47;     --tracking-body: -0.374px;     /* texto general */
+  --text-title: 21px;     --leading-title: 1.19;    --tracking-title: 0.231px;     /* título de tarjeta (display) */
+  --text-heading: 28px;   --leading-heading: 1.14;  --tracking-heading: 0px;       /* título de página (display) */
+  --text-display: 40px;   --leading-display: 1.05;  --tracking-display: 0px;       /* cifra principal: saldo total */
+  --text-hero: 48px;      --leading-hero: 1.08;     --tracking-hero: -0.72px;      /* solo login y portada */
+
+  /* ---------- Espaciado (base 4px) ---------- */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-64: 64px;
+  --space-80: 80px;
+
+  --card-padding: 28px;
+  --gap-element: 20px;              /* entre elementos relacionados */
+  --gap-section: 40px;              /* entre grupos de tarjetas */
+  --content-max: 1120px;
+
+  /* ---------- Forma ---------- */
+  --radius-card: 28px;              /* tarjetas y contenedores de primer nivel */
+  --radius-inner: 20px;             /* elementos dentro de una tarjeta, barra flotante */
+  --radius-small: 10px;             /* filas resaltadas, chips de calendario */
+  --radius-pill: 9999px;            /* botones, inputs, selects, etiquetas */
+
+  /* ---------- Elevación: sin sombras ---------- */
+  --ring: 0 0 0 1px var(--color-fill-muted);          /* contorno sutil de navegación */
+  --ring-strong: 0 0 0 1px var(--color-border-strong); /* control seleccionado */
+
+  /* ---------- Vidrio líquido: solo para paneles que flotan sobre contenido ---------- */
+  --glass-bg: rgba(255, 255, 255, 0.64);
+  --glass-blur: blur(20px) saturate(1.8);
+  --glass-edge:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),   /* brillo del borde superior */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),  /* aro de luz */
+    0 0 0 1px rgba(29, 29, 31, 0.05);          /* filo que lo separa del fondo; no es sombra */
+
+  /* ---------- Gráficas ---------- */
+  --chart-income-muted: #a8d5b4;    /* periodos anteriores; el actual va en --color-income */
+  --chart-ink-muted: #c7c7cc;       /* barras secundarias; la principal va en --color-text */
+  --chart-grid: #e6e6e8;            /* línea base y guías: 1px, sólidas */
+
+  /* ---------- Movimiento ---------- */
+  --duration-fast: 120ms;           /* hover, foco */
+  --duration-default: 200ms;        /* cambios de estado */
+  --duration-slow: 320ms;           /* paneles y entradas */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ---------- Navegación ---------- */
+  --nav-height: 44px;
+  --nav-bg: rgba(255, 255, 255, 0.8);
+  --nav-backdrop: saturate(1.8) blur(20px);
+}
+
+@media (max-width: 600px) {
+  :root {
+    --card-padding: 20px;
+    --gap-section: 28px;
+    --text-heading: 24px;
+    --text-display: 32px;
+    --text-hero: 40px;
+  }
+}

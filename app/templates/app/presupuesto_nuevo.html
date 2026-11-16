@@ -1,0 +1,74 @@
+{% extends "app/base_app.html" %}
+
+{# Crear o editar el presupuesto de un mes: un monto por categoría de gasto; el total se suma
+   mientras se escribe. Se llega desde el Resumen o desde Presupuestos. #}
+
+{% block titulo %}Presupuesto de {{ mes | nombre_mes }}{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ static('css/presupuestos.css') }}">
+{% endblock %}
+
+{% block contenido %}
+{% set nombre = mes | nombre_mes %}
+{% set nombre_anterior = mes_anterior | nombre_mes %}
+<form class="card pres-form" style="--i: 0" novalidate data-presupuesto-form
+      data-anio="{{ anio }}" data-mes="{{ mes }}" data-volver="{{ volver }}">
+  <div class="card-head">
+    <h2 class="card-title">{{ "Ajusta" if editando else "Ponle" }} un monto a cada categoría</h2>
+    <span class="label">{{ nombre | capitalize }} {{ anio }}</span>
+  </div>
+  <p class="sub pres-form__ayuda">Las que dejes en $0 quedan sin presupuesto. Abajo se va sumando el presupuesto del mes.</p>
+
+  <p class="alert alert--danger" role="alert" data-error-general hidden></p>
+
+  <ul class="rows pres-form__lista">
+    {% for f in filas %}
+    {% set c = f.categoria %}
+    <li>
+      <label class="rows__name" for="monto-{{ c.id }}">
+        <span class="icon-bubble">{{ iconos.categoria(c.nombre) }}</span>
+        <span>{{ c.nombre }}<span class="sub">
+          {%- if f.mes_anterior -%}
+          En {{ nombre_anterior }} gastaste <span class="num">{{ f.mes_anterior | dinero }}</span>
+          {%- else -%}
+          Sin gastos en {{ nombre_anterior }}
+          {%- endif -%}
+        </span></span>
+      </label>
+      <div class="pres-form__lado">
+        {% if f.mes_anterior %}
+        <button class="pres-form__usar" type="button" data-usar="{{ (f.mes_anterior | dinero)[1:] }}" data-para="monto-{{ c.id }}"
+                aria-label="Usar {{ f.mes_anterior | dinero }} en {{ c.nombre }}">Usar</button>
+        {% endif %}
+        <span class="pres-form__campo">
+          <span class="pres-form__signo" aria-hidden="true">$</span>
+          <input class="pres-form__input num" id="monto-{{ c.id }}" type="text" inputmode="numeric" autocomplete="off"
+                 placeholder="0" value="{{ (f.limite | dinero)[1:] if f.limite else '' }}"
+                 data-monto data-categoria="{{ c.id }}" aria-describedby="error-{{ c.id }}">
+        </span>
+      </div>
+      <p class="field__message field__message--error pres-form__error" id="error-{{ c.id }}" hidden></p>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="pres-form__total" aria-live="polite">
+    <span class="label">Presupuesto de {{ nombre }}</span>
+    <span class="big num" data-total>{{ total | dinero }}</span>
+  </div>
+
+  <div class="pres-form__acciones">
+    <a class="btn btn--outline" href="{{ volver }}">Cancelar</a>
+    <button class="btn btn--primary" type="submit" data-guardar>
+      <span class="spinner" aria-hidden="true"></span>
+      <span data-label>{{ "Guardar cambios" if editando else "Crear presupuesto" }}</span>
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ static('js/presupuesto-nuevo.js') }}" defer></script>
+{% endblock %}

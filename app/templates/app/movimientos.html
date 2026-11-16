@@ -1,0 +1,153 @@
+{% extends "app/base_app.html" %}
+
+{% block titulo %}Movimientos{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ static('css/movimientos.css') }}">
+{% endblock %}
+
+{% block acciones %}
+{% if ia_disponible %}{% include "app/_asistente.html" %}{% endif %}
+{% with ruta = "movimientos" %}{% include "app/_selector_mes.html" %}{% endwith %}
+{% endblock %}
+
+{% macro firmado(valor, clase="mid") -%}
+{# Positivo o cero: verde con "+". Negativo: color de texto con "−" (nunca rojo). #}
+<span class="{{ clase }} num{% if valor >= 0 %} income{% endif %}">{{ valor | dinero("+" if valor >= 0 else "-") }}</span>
+{%- endmacro %}
+
+{% block contenido %}
+{% set mes = lista.mes | nombre_mes %}
+{% set f = lista.filtros %}
+{% set sin_filtros = "/movimientos?anio=%d&mes=%d" % (lista.anio, lista.mes) %}
+{% set n_filtros = [f.tipo, f.cuenta_id, f.categoria_id] | select | list | length %}
+
+<section class="card totals" style="--i: 0" aria-label="Totales de {{ mes }}">
+  <div>
+    <p class="label">Ingresos</p>
+    <p class="mid num income">{{ lista.ingresos | dinero("+") }}</p>
+  </div>
+  <div>
+    <p class="label">Gastos</p>
+    <p class="mid num">{{ lista.gastos | dinero("-") }}</p>
+  </div>
+  <div>
+    <p class="label">Balance</p>
+    <p>{{ firmado(vista.balance) }}</p>
+  </div>
+  {% if vista.hay_filtros %}<p class="sub totals__note">Según los filtros</p>{% endif %}
+</section>
+
+{# autocomplete="off": que el navegador no restaure al volver valores que no corresponden a la lista. #}
+<form class="filters" method="get" action="/movimientos" role="search" aria-label="Filtrar movimientos" autocomplete="off"
+      style="--i: 1" data-filtros>
+  <input type="hidden" name="anio" value="{{ lista.anio }}">
+  <input type="hidden" name="mes" value="{{ lista.mes }}">
+
+  <label class="search">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg>
+    <input class="search__input" type="search" name="q" value="{{ f.q or '' }}" placeholder="Buscar"
+           aria-label="Buscar por descripción o categoría" autocomplete="off" maxlength="80">
+  </label>
+
+  <details class="filters__more" open data-filtros-mas>
+    <summary class="btn btn--outline filters__toggle">Filtros{% if n_filtros %} · {{ n_filtros }}{% endif %}</summary>
+    <div class="filters__panel">
+      <fieldset class="segmented">
+        <legend class="visually-hidden">Tipo</legend>
+        {% for valor, nombre in [("", "Todos"), ("ingreso", "Ingresos"), ("gasto", "Gastos")] %}
+        <label class="segmented__option">
+          <input type="radio" name="tipo" value="{{ valor }}"{% if (f.tipo or "") == valor %} checked{% endif %}>
+          <span>{{ nombre }}</span>
+        </label>
+        {% endfor %}
+      </fieldset>
+
+      <select class="select" name="cuenta" aria-label="Cuenta">
+        <option value="">Todas las cuentas</option>
+        {% for grupo, refs in grupos_cuentas %}
+        <optgroup label="{{ grupo }}">
+          {% for c in refs %}
+          <option value="{{ c.id }}"{% if f.cuenta_id == c.id %} selected{% endif %}>{{ c.nombre }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+
+      <select class="select" name="categoria" aria-label="Categoría">
+        <option value="">Todas las categorías</option>
+        {% for tipo, nombre in [("gasto", "Gastos"), ("ingreso", "Ingresos")] %}
+        <optgroup label="{{ nombre }}">
+          {% for c in categorias if c.tipo == tipo %}
+          <option value="{{ c.id }}"{% if f.categoria_id == c.id %} selected{% endif %}>{{ c.nombre }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+  </details>
+
+  <button class="btn btn--outline filters__submit" type="submit" data-filtrar>Filtrar</button>
+  {% if vista.hay_filtros %}<a class="filters__clear" href="{{ sin_filtros }}">Quitar filtros</a>{% endif %}
+</form>
+
+<section class="card movs" style="--i: 2" aria-label="Movimientos de {{ mes }}" data-lista
+         {%- if abrir_dialogo %} data-abrir-dialogo{% endif %}
+         {%- if guardado %} data-guardado="{{ guardado }}"{% endif %}>
+  {% for dia in vista.dias %}
+  <div class="day">
+    <h2 class="day__head">
+      <span class="label">{{ dia.fecha | fecha_larga }}</span>
+      {% if dia.filas %}{{ firmado(dia.neto, "label") }}{% endif %}
+    </h2>
+    <ul class="rows">
+      {% for fila in dia.filas %}
+      {% set m = fila.m %}
+      <li class="movs__row" data-id="{{ m.id }}" data-movimiento='{{ fila.datos | tojson }}'>
+        <span class="rows__name">
+          <span class="icon-bubble">{{ iconos.categoria(m.categoria.nombre) }}</span>
+          <span>{{ m.descripcion or m.categoria.nombre }}<span class="sub">{{ m.categoria.nombre }} · {{ m.cuenta.nombre }}</span></span>
+        </span>
+        {% if m.tipo == "ingreso" %}
+        <span class="num income">{{ m.monto | dinero("+") }}</span>
+        {% else %}
+        <span class="num">{{ m.monto | dinero("-") }}</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+      {% for fila in dia.pagos %}
+      {% set p = fila.p %}
+      <li class="movs__row" data-pago='{{ fila.datos | tojson }}'>
+        <span class="rows__name">
+          <span class="icon-bubble movs__pago-icono tono-{{ p.tarjeta_tono }}">{{ iconos.cuenta(p.tarjeta_icono) }}</span>
+          <span>Pago {{ p.tarjeta.nombre }}<span class="sub">Desde {{ p.origen.nombre }} · No cuenta como gasto</span></span>
+        </span>
+        <span class="num movs__neutro">{{ p.monto | dinero }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <div class="movs__empty">
+    <span class="pending__icon" aria-hidden="true">{{ iconos.seccion("movimientos") }}</span>
+    {% if vista.hay_filtros %}
+    <h2 class="card-title">Ningún movimiento coincide con los filtros</h2>
+    <p>Prueba con otra búsqueda o quita los filtros para ver todo {{ mes }}.</p>
+    <a class="btn btn--outline btn--lg" href="{{ sin_filtros }}">Quitar filtros</a>
+    {% else %}
+    <h2 class="card-title">No hay movimientos en {{ mes }}</h2>
+    <p>Los ingresos y gastos que registres aparecen aquí, agrupados por día.</p>
+    <a class="btn btn--outline btn--lg" href="/movimientos?nuevo=1" data-nuevo-movimiento>Registrar un movimiento</a>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}
+
+{% block dialogos %}{% include "app/_dialogo_pago.html" %}{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ static('js/pago-dialogo.js') }}" defer></script>
+<script src="{{ static('js/movimientos.js') }}" defer></script>
+{% endblock %}

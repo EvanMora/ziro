@@ -1,0 +1,156 @@
+{#
+  Estructura de la app: barra lateral + barra superior + contenido de la sección.
+  Cada sección es una página propia (una ruta por sección); la animación entre ellas la hace
+  el navegador con View Transitions (ver app.css). Las barras lateral y superior se quedan quietas.
+#}
+{% extends "base.html" %}
+{% import "app/_iconos.html" as iconos %}
+{% import "_logo.html" as logo %}
+
+{% block title %}{% block titulo %}{% endblock %} · {{ app_name }}{% endblock %}
+
+{% block head_inicio %}
+{# Antes de pintar: los estilos saben que hay JS (p. ej. ocultan el botón "Filtrar"). Va antes de los
+   <link> de CSS: un script en línea detrás de una hoja de estilos espera a que esta cargue. #}
+<script>document.documentElement.classList.add("js");</script>
+{#
+  Cambio de sección tipo feed (las reglas están en app.css, "Cambio de sección"): si la sección
+  de destino está más abajo en el menú, el contenido sube; si está más arriba, baja.
+  - Sin dirección no se anima: misma sección (cambiar de mes o un filtro, /presupuestos ->
+    /presupuestos/nuevo, recargar tras guardar) o una página fuera del menú. Con la transición,
+    cambiar de mes tardaba ~185 ms más en pintar.
+  - pageswap (página que se va): saltarla aquí evita capturar la vista vieja. Si el cajón del
+    celular está abierto se cierra sin su transición, para que la captura salga sin él.
+  - pagereveal (página que llega): pone la dirección como tipo de la transición y la clase
+    vt-seccion, que apaga las animaciones de entrada mientras se desliza. Se dispara antes del
+    primer pintado, así que el oyente tiene que estar aquí, en línea; desde un script defer llega
+    tarde. Sin Navigation API (navigation.activation) no hay dirección y no se anima.
+#}
+<script>
+  (() => {
+    const ORDEN = {{ secciones | map(attribute=0) | list | tojson }};
+    const indice = (u) => ORDEN.indexOf(u.pathname.split("/")[1]);
+    const direccion = (desde, hacia) => {
+      if (!desde || !hacia) return null;
+      const a = new URL(desde), b = new URL(hacia);
+      if (a.origin !== b.origin) return null;
+      const origen = indice(a), destino = indice(b);
+      if (origen < 0 || destino < 0 || origen === destino) return null;
+      return destino > origen ? "hacia-abajo" : "hacia-arriba";
+    };
+    const raiz = document.documentElement;
+    // Saltarla rechaza la promesa "ready" con AbortError; se atrapa para que no salga en la consola.
+    const saltar = (vt) => { vt.ready.catch(() => {}); vt.skipTransition(); };
+    addEventListener("pageswap", (e) => {
+      if (!e.viewTransition) return;
+      if (!direccion(location.href, e.activation?.entry?.url)) return saltar(e.viewTransition);
+      const cajon = document.querySelector("[data-shell].is-open");
+      if (!cajon) return;
+      raiz.classList.add("vt-cierra-cajon");
+      cajon.classList.remove("is-open");
+      cajon.querySelector("[data-menu]")?.setAttribute("aria-expanded", "false");
+    });
+    // Al volver con Atrás desde la caché, el cajón vuelve a abrir y cerrar con su transición.
+    addEventListener("pageshow", () => raiz.classList.remove("vt-cierra-cajon"));
+    addEventListener("pagereveal", (e) => {
+      if (!e.viewTransition) return;
+      const tipo = direccion(window.navigation?.activation?.from?.url, location.href);
+      if (!tipo) return saltar(e.viewTransition);
+      e.viewTransition.types.add(tipo);
+      raiz.classList.add("vt-seccion");
+    });
+  })();
+</script>
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ static('css/app.css') }}">
+{% block estilos %}{% endblock %}
+{% endblock %}
+
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+<div class="shell{% if barra_contraida %} is-collapsed{% endif %}" data-shell>
+  <aside class="sidebar" id="barra-lateral" aria-label="Navegación principal">
+    <a class="sb-head" href="/resumen" aria-label="{{ app_name }}, ir al resumen">
+      {{ logo.simbolo() }}
+      <span class="sb-label">{{ app_name }}</span>
+    </a>
+
+    <a class="btn btn--ink sb-new" href="/movimientos?nuevo=1" title="Nuevo movimiento" data-nuevo-movimiento>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+      <span class="sb-label">Nuevo movimiento</span>
+    </a>
+
+    <nav class="sb-nav-wrap">
+      <ul class="sb-nav">
+        {% for ruta, nombre, icono in secciones %}
+        <li>
+          {% if ruta == seccion %}<span class="sb-indicator" aria-hidden="true"></span>{% endif %}
+          <a class="sb-item" href="/{{ ruta }}" title="{{ nombre }}"{% if ruta == seccion %} aria-current="page"{% endif %}>
+            {{ iconos.seccion(icono) }}<span class="sb-label">{{ nombre }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+
+      {% if proximamente %}
+      <p class="sb-group">Próximamente</p>
+      <ul class="sb-nav">
+        {% for nombre, icono in proximamente %}
+        <li>
+          <span class="sb-item" aria-disabled="true" title="{{ nombre }} (Fase 2)">
+            {{ iconos.seccion(icono) }}<span class="sb-label">{{ nombre }}</span><span class="sb-soon sb-label">Fase 2</span>
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </nav>
+
+    <div class="sb-foot">
+      <div class="sb-user">
+        <span class="avatar" aria-hidden="true">{{ usuario.iniciales }}</span>
+        <span class="sb-label">{{ usuario.nombre }}<span class="sub">{{ usuario.correo }}</span></span>
+      </div>
+      <button class="sb-logout" type="button" data-logout title="Cerrar sesión">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 3.5H5.5a2 2 0 00-2 2v9a2 2 0 002 2H8M12.5 6.5L16 10l-3.5 3.5M16 10H7.5"/></svg>
+        <span class="sb-label">Cerrar sesión</span>
+      </button>
+      <button class="sb-toggle" type="button" aria-controls="barra-lateral"
+              aria-expanded="{{ 'false' if barra_contraida else 'true' }}" data-collapse>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="3"/><path d="M7.5 3.5v13M13 8l-2 2 2 2"/></svg>
+        <span class="sb-label" data-collapse-label>{{ "Expandir barra" if barra_contraida else "Contraer barra" }}</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="scrim" data-scrim></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="topbar__menu" type="button" aria-label="Abrir menú" aria-controls="barra-lateral" aria-expanded="false" data-menu>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14"/></svg>
+      </button>
+      <h1 class="topbar__title">{{ self.titulo() }}</h1>
+      <div class="topbar__end">{% block acciones %}{% endblock %}</div>
+    </header>
+
+    <main class="view" id="contenido">
+      {% block contenido %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+{% include "app/_dialogo_movimiento.html" %}
+{# Diálogos propios de una sección. Van fuera de .view para no heredar su animación de entrada. #}
+{% block dialogos %}{% endblock %}
+<div class="toast" role="status" aria-live="polite" data-toast hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ static('js/app-shell.js') }}" defer></script>
+<script src="{{ static('js/movimiento-dialogo.js') }}" defer></script>
+<script src="{{ static('js/desplegable.js') }}" defer></script>
+{% endblock %}

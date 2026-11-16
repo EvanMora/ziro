@@ -1,0 +1,148 @@
+{#
+  Diálogo "Nuevo movimiento" / "Editar movimiento". Vive en base_app.html, así que se abre desde
+  cualquier sección. Lo maneja static/js/movimiento-dialogo.js, que guarda con la API JSON
+  (/api/v1/movimientos). Espera "grupos_cuentas", "catalogo_categorias" y "hoy_iso".
+  Mismos campos, mensajes de error y botón con spinner/check que el formulario del login.
+  La flecha de los select es un <svg> en el HTML (.select-flecha en app.css), no la imagen de fondo
+  de .select: así la primera apertura no paga montar esa imagen. El monto lleva autofocus para que
+  showModal() lo enfoque directo (sin pasar por el botón de cerrar y recalcular estilos otra vez).
+#}
+<dialog class="dialog" id="dialogo-movimiento" aria-labelledby="dialogo-titulo" data-dialogo-movimiento>
+  <form class="dialog__body" data-form-movimiento novalidate>
+    <header class="dialog__head">
+      <h2 class="card-title" id="dialogo-titulo" data-titulo>Nuevo movimiento</h2>
+      <button class="dialog__close" type="button" aria-label="Cerrar" data-cerrar>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </header>
+
+    <div class="alert alert--danger" role="alert" data-form-alert hidden></div>
+
+    {% if ia_disponible %}
+    {# Asistente con Gemini: una frase completa el formulario (solo al crear; ver services/ia.py). #}
+    <div class="dialog__ia" data-ia>
+      <label class="field__label" for="mov-ia">Escríbelo con tus palabras</label>
+      <div class="ia-fila">
+        <input class="ia-input" id="mov-ia" type="text" maxlength="300" autocomplete="off"
+               placeholder="Ej.: ayer 45.000 en taxi" aria-describedby="ia-mensaje" data-ia-texto>
+        <button class="btn btn--ink ia-boton" type="button" data-ia-completar>
+          <span class="spinner" aria-hidden="true"></span>
+          <svg class="ia-icono" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z"/></svg>
+          <span>Completar</span>
+        </button>
+      </div>
+      <p class="field__message" id="ia-mensaje" role="status" data-ia-mensaje hidden></p>
+    </div>
+    {% endif %}
+
+    <fieldset class="segmented dialog__tipo">
+      <legend class="visually-hidden">Tipo</legend>
+      <label class="segmented__option">
+        <input type="radio" name="tipo" value="gasto" checked>
+        <span>Gasto</span>
+      </label>
+      <label class="segmented__option">
+        <input type="radio" name="tipo" value="ingreso">
+        <span>Ingreso</span>
+      </label>
+    </fieldset>
+
+    <div class="field">
+      <div class="float-field">
+        <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M13 6.5c-.6-1-1.7-1.5-3-1.5-1.8 0-3 .9-3 2.3 0 3.2 6 1.8 6 5.1 0 1.4-1.3 2.4-3 2.4-1.4 0-2.6-.6-3.2-1.6M10 3v14"/></svg>
+        <input class="float-field__input dialog__monto num" id="mov-monto" name="monto" type="text"
+               inputmode="numeric" autocomplete="off" placeholder=" " aria-describedby="monto-error" required autofocus>
+        <label class="float-field__label" for="mov-monto">Monto</label>
+      </div>
+      <p class="field__message field__message--error" id="monto-error" hidden></p>
+    </div>
+
+    <div class="dialog__pair">
+      <div class="field">
+        <label class="field__label" for="mov-categoria">Categoría</label>
+        <div class="select-flecha">
+          <select class="select select--lg" id="mov-categoria" name="categoria_id" aria-describedby="categoria_id-error" required>
+            <option value="">Elige una</option>
+            {% for c in catalogo_categorias %}
+            <option value="{{ c.id }}" data-tipo="{{ c.tipo }}">{{ c.nombre }}</option>
+            {% endfor %}
+          </select>
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5 9 4.5"/></svg>
+        </div>
+        {% if ia_disponible %}
+        {# Categoría que propone el asistente cuando ninguna encaja: va como opción "(nueva)" del select
+           y se crea solo al guardar el movimiento (movimiento-dialogo.js, "Categoría nueva"). #}
+        <div class="categoria-nueva" data-categoria-nueva hidden>
+          <p class="field__message categoria-nueva__texto">
+            <svg class="ia-icono" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z"/></svg>
+            Sugerida por el asistente. Se crea al guardar.
+            <button class="categoria-nueva__cambiar" type="button" data-categoria-nueva-cambiar>Cambiar nombre</button>
+          </p>
+          <label class="visually-hidden" for="mov-categoria-nueva">Nombre de la categoría nueva</label>
+          <input class="ia-input categoria-nueva__input" id="mov-categoria-nueva" type="text" maxlength="40"
+                 autocomplete="off" data-categoria-nueva-nombre hidden>
+        </div>
+        {% endif %}
+        <p class="field__message field__message--error" id="categoria_id-error" hidden></p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="mov-cuenta">Cuenta</label>
+        <div class="select-flecha">
+          <select class="select select--lg" id="mov-cuenta" name="cuenta_id" aria-describedby="cuenta_id-error" required>
+            <option value="">Elige una</option>
+            {% for grupo, refs in grupos_cuentas %}
+            <optgroup label="{{ grupo }}">
+              {% for c in refs %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
+            </optgroup>
+            {% endfor %}
+          </select>
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5 9 4.5"/></svg>
+        </div>
+        <p class="field__message field__message--error" id="cuenta_id-error" hidden></p>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="float-field">
+        <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="3"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg>
+        <input class="float-field__input" id="mov-fecha" name="fecha" type="date" max="{{ hoy_iso }}"
+               value="{{ hoy_iso }}" placeholder=" " aria-describedby="fecha-error" required>
+        <label class="float-field__label" for="mov-fecha">Fecha</label>
+      </div>
+      <p class="field__message field__message--error" id="fecha-error" hidden></p>
+    </div>
+
+    <div class="field">
+      <div class="float-field">
+        <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16l1-4L13.5 3.5a1.4 1.4 0 0 1 2 0l1 1a1.4 1.4 0 0 1 0 2L8 15z"/></svg>
+        <input class="float-field__input" id="mov-descripcion" name="descripcion" type="text" maxlength="80"
+               autocomplete="off" placeholder=" " aria-describedby="descripcion-error">
+        <label class="float-field__label" for="mov-descripcion">Descripción (opcional)</label>
+      </div>
+      <p class="field__message field__message--error" id="descripcion-error" hidden></p>
+    </div>
+
+    <div class="dialog__actions">
+      <button class="btn btn--primary btn--lg btn--block" type="submit" data-guardar>
+        <span class="spinner" aria-hidden="true"></span>
+        <svg class="btn__check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" pathLength="1"/></svg>
+        <span data-label>Guardar</span>
+      </button>
+      <button class="dialog__delete" type="button" data-eliminar hidden>Eliminar movimiento</button>
+    </div>
+  </form>
+
+  <div class="dialog__body dialog__confirm" data-confirmar hidden>
+    <h2 class="card-title">Eliminar movimiento</h2>
+    <p data-confirmar-texto></p>
+    <div class="alert alert--danger" role="alert" data-confirmar-alert hidden></div>
+    <div class="dialog__actions dialog__actions--row">
+      <button class="btn btn--outline btn--lg" type="button" data-cancelar>Cancelar</button>
+      <button class="btn btn--danger btn--lg" type="button" data-confirmar-eliminar>
+        <span class="spinner" aria-hidden="true"></span>
+        <span data-label>Eliminar</span>
+      </button>
+    </div>
+  </div>
+</dialog>

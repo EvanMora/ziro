@@ -1,0 +1,151 @@
+{#
+  Diálogo "Nueva cuenta" / "Editar cuenta" de la sección Cuentas. Lo maneja static/js/cuentas.js,
+  que guarda con la API JSON (/api/v1/cuentas). Mismos componentes que los diálogos de movimientos
+  y categorías. Espera "grupos_cuentas" para la lista "Pasar sus movimientos a".
+#}
+{% set ICONOS = [("banco", "Banco"), ("alcancia", "Alcancía"), ("billetera", "Billetera"), ("celular", "Celular"),
+                 ("billetes", "Billetes"), ("tarjeta", "Tarjeta"), ("monedas", "Monedas"), ("maletin", "Maletín")] %}
+{% set TONOS = [("azul", "Azul"), ("indigo", "Índigo"), ("violeta", "Violeta"), ("ciruela", "Ciruela"),
+                ("petroleo", "Petróleo"), ("cafe", "Café"), ("arena", "Arena"), ("grafito", "Grafito")] %}
+<dialog class="dialog" id="dialogo-cuenta" aria-labelledby="cuenta-titulo" data-dialogo-cuenta>
+  <form class="dialog__body" data-form-cuenta novalidate>
+    <header class="dialog__head">
+      <h2 class="card-title" id="cuenta-titulo" data-titulo>Nueva cuenta</h2>
+      <button class="dialog__close" type="button" aria-label="Cerrar" data-cerrar>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </header>
+
+    <div class="alert alert--danger" role="alert" data-form-alert hidden></div>
+
+    <div class="field">
+      <fieldset class="segmented dialog__tipo" aria-describedby="cuenta-tipo-error">
+        <legend class="visually-hidden">Tipo</legend>
+        <label class="segmented__option">
+          <input type="radio" name="grupo" value="dinero" checked>
+          <span>Dinero</span>
+        </label>
+        <label class="segmented__option">
+          <input type="radio" name="grupo" value="tarjeta">
+          <span>Tarjeta de crédito</span>
+        </label>
+      </fieldset>
+      <p class="field__message" data-tipo-fijo hidden>Ya tiene movimientos, así que no puede pasar de dinero a tarjeta ni al revés.</p>
+      <p class="field__message field__message--error" id="cuenta-tipo-error" hidden></p>
+    </div>
+
+    <div class="cuenta-nombre-fila">
+      <span class="cuenta-icono cuenta-icono--grande tono-azul" data-vista-previa aria-hidden="true">
+        {% for valor, _ in ICONOS %}<span data-icono-previa="{{ valor }}"{% if not loop.first %} hidden{% endif %}>{{ iconos.cuenta(valor) }}</span>{% endfor %}
+      </span>
+      <div class="field">
+        <div class="float-field">
+          <input class="float-field__input cuenta-sin-icono" id="cuenta-nombre" name="nombre" type="text" maxlength="40"
+                 autocomplete="off" placeholder=" " aria-describedby="cuenta-nombre-error" required>
+          <label class="float-field__label cuenta-sin-icono__label" for="cuenta-nombre">Nombre</label>
+        </div>
+        <p class="field__message field__message--error" id="cuenta-nombre-error" hidden></p>
+      </div>
+    </div>
+
+    <div class="field" data-solo-dinero>
+      <label class="field__label" for="cuenta-clase">Clase</label>
+      <select class="select select--lg" id="cuenta-clase" name="clase">
+        <option value="ahorros">Cuenta de ahorros</option>
+        <option value="corriente">Cuenta corriente</option>
+        <option value="billetera">Billetera digital</option>
+        <option value="efectivo">Efectivo</option>
+      </select>
+    </div>
+
+    <fieldset class="cuenta-opciones" aria-describedby="cuenta-icono-error">
+      <legend class="field__label">Ícono</legend>
+      <div class="cuenta-opciones__lista">
+        {% for valor, nombre in ICONOS %}
+        <label class="cuenta-opcion" title="{{ nombre }}">
+          <input class="visually-hidden" type="radio" name="icono" value="{{ valor }}"{% if loop.first %} checked{% endif %}>
+          <span class="cuenta-opcion__icono">{{ iconos.cuenta(valor) }}<span class="visually-hidden">{{ nombre }}</span></span>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="field__message field__message--error" id="cuenta-icono-error" hidden></p>
+    </fieldset>
+
+    <fieldset class="cuenta-opciones" aria-describedby="cuenta-tono-error">
+      <legend class="field__label">Tono</legend>
+      <div class="cuenta-opciones__lista">
+        {% for valor, nombre in TONOS %}
+        <label class="cuenta-opcion" title="{{ nombre }}">
+          <input class="visually-hidden" type="radio" name="tono" value="{{ valor }}"{% if loop.first %} checked{% endif %}>
+          <span class="cuenta-opcion__tono tono-{{ valor }}"><span class="visually-hidden">{{ nombre }}</span></span>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="field__message field__message--error" id="cuenta-tono-error" hidden></p>
+    </fieldset>
+
+    <div class="field">
+      <div class="float-field">
+        <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M13 6.5c-.6-1-1.7-1.5-3-1.5-1.8 0-3 .9-3 2.3 0 3.2 6 1.8 6 5.1 0 1.4-1.3 2.4-3 2.4-1.4 0-2.6-.6-3.2-1.6M10 3v14"/></svg>
+        <input class="float-field__input num" id="cuenta-saldo" name="saldo" type="text" inputmode="numeric"
+               autocomplete="off" placeholder=" " aria-describedby="cuenta-saldo-error cuenta-saldo-nota" required data-dinero>
+        <label class="float-field__label" for="cuenta-saldo" data-label-saldo>Saldo de hoy</label>
+      </div>
+      <p class="field__message" id="cuenta-saldo-nota" data-nota-saldo hidden>Si no coincide con tu banco, escribe el saldo real.</p>
+      <p class="field__message field__message--error" id="cuenta-saldo-error" hidden></p>
+    </div>
+
+    <div class="dialog__pair" data-solo-tarjeta hidden>
+      <div class="field">
+        <div class="float-field">
+          <input class="float-field__input num cuenta-sin-icono" id="cuenta-cupo" name="cupo" type="text" inputmode="numeric"
+                 autocomplete="off" placeholder=" " aria-describedby="cuenta-cupo-error" data-dinero>
+          <label class="float-field__label cuenta-sin-icono__label" for="cuenta-cupo">Cupo</label>
+        </div>
+        <p class="field__message field__message--error" id="cuenta-cupo-error" hidden></p>
+      </div>
+      <div class="field">
+        <label class="visually-hidden" for="cuenta-dia">Día límite de pago</label>
+        <select class="select select--lg" id="cuenta-dia" name="dia_pago" aria-describedby="cuenta-dia-error">
+          <option value="">Día límite de pago</option>
+          {% for dia in range(1, 32) %}<option value="{{ dia }}">Pagar el día {{ dia }}</option>{% endfor %}
+        </select>
+        <p class="field__message field__message--error" id="cuenta-dia-error" hidden></p>
+      </div>
+    </div>
+
+    <div class="dialog__actions">
+      <button class="btn btn--primary btn--lg btn--block" type="submit" data-guardar>
+        <span class="spinner" aria-hidden="true"></span>
+        <svg class="btn__check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" pathLength="1"/></svg>
+        <span data-label>Guardar</span>
+      </button>
+      <button class="dialog__delete" type="button" data-eliminar hidden>Eliminar cuenta</button>
+    </div>
+  </form>
+
+  <div class="dialog__body dialog__confirm" data-confirmar hidden>
+    <h2 class="card-title">Eliminar cuenta</h2>
+    <p data-confirmar-texto></p>
+
+    <div class="field" data-mover hidden>
+      <label class="field__label" for="cuenta-mover">Pasar sus movimientos a</label>
+      <select class="select select--lg" id="cuenta-mover" name="mover_a" aria-describedby="cuenta-mover-error">
+        <option value="">Elige una</option>
+        {% for grupo, refs in grupos_cuentas %}
+        {% for c in refs %}<option value="{{ c.id }}" data-grupo="{{ 'tarjeta' if grupo == 'Tarjetas' else 'dinero' }}">{{ c.nombre }}</option>{% endfor %}
+        {% endfor %}
+      </select>
+      <p class="field__message field__message--error" id="cuenta-mover-error" hidden></p>
+    </div>
+
+    <div class="alert alert--danger" role="alert" data-confirmar-alert hidden></div>
+    <div class="dialog__actions dialog__actions--row">
+      <button class="btn btn--outline btn--lg" type="button" data-cancelar>Cancelar</button>
+      <button class="btn btn--danger btn--lg" type="button" data-confirmar-eliminar>
+        <span class="spinner" aria-hidden="true"></span>
+        <span data-label>Eliminar</span>
+      </button>
+    </div>
+  </div>
+</dialog>

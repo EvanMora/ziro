@@ -1,0 +1,32 @@
+{#
+  Análisis del mes con Gemini, en la barra superior del Resumen: botón "Analizar mes ▾" que
+  despliega 1 a 3 observaciones y un consejo sobre el mes que se está viendo. Se pide al abrirlo por
+  primera vez, o un poco antes al dejar el ratón encima o enfocar el botón (GET /api/v1/ia/analisis-mes).
+  Abrir y cerrar lo maneja static/js/desplegable.js; lo demás, static/js/analisis.js. Espera "periodo". Solo se incluye si hay GEMINI_API_KEY.
+#}
+{% set nombre = periodo.mes | nombre_mes %}
+<div class="asistente" data-analisis data-desplegable data-anio="{{ periodo.anio }}" data-mes="{{ periodo.mes }}"
+     data-nombre-mes="{{ nombre }}">
+  <button class="asistente__boton" type="button" aria-expanded="false" aria-controls="analisis-panel"
+          aria-label="Analizar {{ nombre }} con IA" data-desplegable-boton>
+    <svg class="ia-icono" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z"/></svg>
+    <span class="asistente__etiqueta">Analizar mes</span>
+    <svg class="asistente__flecha" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5l3-3"/></svg>
+  </button>
+
+  <div class="asistente__panel" id="analisis-panel" role="dialog" aria-labelledby="analisis-titulo"
+       data-desplegable-panel hidden>
+    <div>
+      <p class="asistente__titulo" id="analisis-titulo">Análisis de {{ nombre }}</p>
+      <p class="asistente__texto">Lo que dicen tus cifras del mes, en pocas palabras.</p>
+    </div>
+
+    <div class="analisis__cuerpo" aria-live="polite" aria-busy="false" data-analisis-cuerpo></div>
+
+    <p class="analisis__nota">
+      <svg class="ia-icono" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z"/></svg>
+      Escrito por IA a partir de tus totales por categoría. No ve tus cuentas, saldos ni descripciones.
+    </p>
+  </div>
+</div>
+<script src="{{ static('js/analisis.js') }}" defer></script>

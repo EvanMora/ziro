@@ -1,0 +1,1659 @@
+/*
+ * Estructura de la app (barra lateral + barra superior) y componentes compartidos por las
+ * secciones. Solo usa variables de tokens.css; las reglas están en docs/design-system.md.
+ */
+
+/* ---------- Cambio de sección ----------
+ * Cada sección es una página propia. El navegador anima el paso entre ellas (View Transitions)
+ * como un feed: si la sección de destino está más abajo en el menú, el contenido viejo sale
+ * entero hacia arriba y el nuevo entra desde abajo, pegados; si está más arriba, al revés. Las
+ * barras lateral y superior se quedan quietas y la píldora de la sección activa se desliza.
+ * El script en línea de base_app.html pone la dirección como tipo de la transición
+ * (hacia-abajo / hacia-arriba) y la salta cuando no hay dirección (cambiar de mes, un filtro,
+ * recargar tras guardar). En navegadores sin soporte (Firefox) la página cambia sin animación.
+ *
+ * El contenido es la captura de la raíz: la ventana tal como se ve, sin las barras (que tienen
+ * nombre propio y van encima). Así sale la vista vieja desde donde estaba el scroll y la nueva
+ * desde arriba, y las dos miden lo mismo: con translateY(±100%) quedan pegadas sin hueco.
+ * Solo se anima transform, sin opacidad: lo mueve la GPU sin repintar, y sin fundido no queda
+ * el instante vacío entre las dos que se veía como un parpadeo. Mientras se desliza no se anima
+ * nada más (clase vt-seccion: los bloques y las barras de cada sección entran ya puestos).
+ */
+@view-transition {
+  navigation: auto;
+}
+
+.sidebar {
+  view-transition-name: barra;
+}
+
+.sb-indicator {
+  view-transition-name: indicador;
+}
+
+.topbar {
+  view-transition-name: barra-superior;
+}
+
+/* La píldora es una captura aparte encima de la barra lateral: pintada normal, su gris tapaba el
+   nombre de la sección mientras se desliza. Multiplicada, el texto de debajo se ve a través (sobre
+   el blanco de la barra queda su mismo gris). Es un área pequeña: mezclarla cuesta poco. */
+::view-transition-group(indicador) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  mix-blend-mode: multiply;
+}
+
+/* Las barras no se mueven ni se funden: se muestra la nueva desde el primer frame (cambia el
+   título de la barra superior, como en una página normal). */
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-group(root),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-group(barra),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-group(barra-superior),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-new(barra),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-new(barra-superior) {
+  animation: none;
+}
+
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-old(barra),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-old(barra-superior) {
+  display: none;
+}
+
+/* Las dos capturas no se mezclan (no se solapan nunca): sin plus-lighter ni capa aislada que
+   obligue a componerlas aparte en cada frame. */
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-image-pair(root) {
+  isolation: auto;
+}
+
+/* Misma duración y curva para las dos: si una fuera más rápida se abriría un hueco o se montarían. */
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-old(root),
+:root:active-view-transition-type(hacia-abajo, hacia-arriba)::view-transition-new(root) {
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-emphasized);
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
+}
+
+:root:active-view-transition-type(hacia-abajo)::view-transition-old(root) {
+  animation-name: vt-sale-arriba;
+}
+
+:root:active-view-transition-type(hacia-abajo)::view-transition-new(root) {
+  animation-name: vt-entra-abajo;
+}
+
+:root:active-view-transition-type(hacia-arriba)::view-transition-old(root) {
+  animation-name: vt-sale-abajo;
+}
+
+:root:active-view-transition-type(hacia-arriba)::view-transition-new(root) {
+  animation-name: vt-entra-arriba;
+}
+
+@keyframes vt-sale-arriba {
+  to {
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes vt-entra-abajo {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes vt-sale-abajo {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes vt-entra-arriba {
+  from {
+    transform: translateY(-100%);
+  }
+}
+
+/* Celular: si se elige una sección con el cajón abierto, el script lo cierra justo antes de la
+   captura; sin transición, para que la captura salga ya sin el cajón ni el velo. */
+.vt-cierra-cajon .sidebar,
+.vt-cierra-cajon .scrim {
+  transition: none;
+}
+
+/* ---------- Estructura ---------- */
+.shell {
+  --sb-w: 248px;
+  display: grid;
+  grid-template-columns: var(--sb-w) minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+}
+
+.shell.is-collapsed {
+  --sb-w: 76px;
+}
+
+/* ---------- Contraer o expandir la barra lateral ----------
+ * Las columnas cambian de golpe: animar grid-template-columns recalculaba el layout y repintaba
+ * todo el contenido en cada frame. app-shell.js hace el cambio dentro de una View Transition del
+ * mismo documento y pone la clase vt-barra en <html> mientras dura, así que aquí solo se animan
+ * capturas: la barra se ensancha o se estrecha recortando su contenido y el contenido se desliza
+ * a su sitio fundiéndose de su forma vieja a la nueva. Las reglas de arriba (cambio de sección)
+ * solo aplican con sus tipos (hacia-abajo / hacia-arriba), que esta transición no lleva.
+ */
+
+/* Fuera de la barra y el contenido solo queda el fondo: no hace falta capturarlo y fundirlo. */
+:root.vt-barra {
+  view-transition-name: none;
+}
+
+/* Aquí el contenido es .main entero, con la barra superior dentro (cambia de ancho con él). */
+.vt-barra .main {
+  view-transition-name: contenido;
+}
+
+.vt-barra .topbar {
+  view-transition-name: none;
+}
+
+.vt-barra .sidebar {
+  box-shadow: none; /* el borde lo dibuja el grupo, que es el que cambia de ancho */
+}
+
+.vt-barra .sb-indicator {
+  view-transition-name: none; /* la píldora va dentro de la captura de la barra */
+}
+
+:root.vt-barra::view-transition-group(*) {
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-emphasized);
+}
+
+:root.vt-barra::view-transition-group(barra),
+:root.vt-barra::view-transition-group(contenido) {
+  overflow: clip;
+}
+
+:root.vt-barra::view-transition-group(barra) {
+  box-sizing: border-box;
+  border-right: 1px solid var(--color-fill-muted);
+  background: var(--color-surface);
+}
+
+/* Las capturas no se estiran: quedan a su tamaño, arriba a la izquierda, y el grupo las recorta.
+ * La vieja va encima y se desvanece rápido (como en el cambio de sección) sobre la nueva, que ya
+ * está entera: es el mismo fundido sin mezclar las dos (plus-lighter), que obliga a componerlas
+ * aparte en cada frame. */
+:root.vt-barra::view-transition-image-pair(*) {
+  isolation: auto;
+}
+
+:root.vt-barra::view-transition-old(*),
+:root.vt-barra::view-transition-new(*) {
+  width: auto;
+  height: auto;
+  mix-blend-mode: normal;
+}
+
+:root.vt-barra::view-transition-old(*) {
+  z-index: 1;
+  animation: vt-desvanecer var(--duration-fast) var(--ease-out) both;
+}
+
+:root.vt-barra::view-transition-new(*) {
+  animation: none;
+}
+
+@keyframes vt-desvanecer {
+  to {
+    opacity: 0;
+  }
+}
+
+/* ---------- Barra lateral ---------- */
+.sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  height: 100vh;
+  height: 100dvh;
+  min-width: 0;
+  padding: var(--space-20) var(--space-16);
+  overflow: hidden;
+  background: var(--color-surface);
+  box-shadow: inset -1px 0 0 var(--color-fill-muted);
+}
+
+.sb-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  height: 36px;
+  padding: 0 10px;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.sb-head:hover {
+  text-decoration: none;
+}
+
+.sb-head svg {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+.sb-label {
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity var(--duration-default) var(--ease-out);
+}
+
+.is-collapsed .sb-label,
+.is-collapsed .sb-group {
+  opacity: 0;
+}
+
+.sb-new {
+  justify-content: flex-start;
+  gap: var(--space-12);
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.sb-new svg,
+.sb-item svg,
+.sb-toggle svg,
+.sb-logout svg,
+.topbar__menu svg,
+.month svg,
+.pending__icon svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sb-item svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sb-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sb-nav li {
+  position: relative;
+}
+
+/* Píldora gris de la sección activa. Entre páginas se desliza (view-transition-name: indicador). */
+.sb-indicator {
+  position: absolute;
+  inset: 0;
+  background: var(--color-canvas);
+  border-radius: var(--radius-pill);
+}
+
+.sb-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  height: 40px;
+  padding: 0 14px;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.sb-item:hover {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.sb-item[aria-current="page"] {
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+
+.sb-item[aria-disabled="true"] {
+  color: var(--color-border-strong);
+  cursor: default;
+}
+
+.sb-soon {
+  margin-left: auto;
+  padding: 1px 8px;
+  background: var(--color-canvas);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+}
+
+.sb-group {
+  padding: var(--space-12) 14px 4px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  white-space: nowrap;
+  transition: opacity var(--duration-default) var(--ease-out);
+}
+
+.sb-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: var(--space-12);
+  box-shadow: 0 -1px 0 var(--color-fill-muted);
+}
+
+.sb-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: 6px;
+  white-space: nowrap;
+}
+
+/* «Contraer barra» y «Cerrar sesión» se ven igual: texto secundario que se aclara al pasar. */
+.sb-toggle,
+.sb-logout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-pill);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sb-toggle:hover,
+.sb-logout:hover {
+  background: var(--color-canvas);
+  color: var(--color-text);
+}
+
+.sb-toggle svg {
+  transition: transform var(--duration-slow) var(--ease-emphasized);
+}
+
+.is-collapsed .sb-toggle svg {
+  transform: scaleX(-1);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  background: var(--color-fill-muted);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+}
+
+/* ---------- Barra superior ---------- */
+.main {
+  min-width: 0;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  height: 72px;
+  padding: 0 var(--space-40);
+  /* Opaca y sin backdrop-filter: el blur sobre una barra sticky recalculaba el fondo en
+     cada frame y trababa el scroll y la barra lateral. La línea inferior la separa del
+     contenido, igual que el filo de la barra lateral. */
+  background: var(--color-surface);
+  box-shadow: inset 0 -1px 0 var(--color-fill-muted);
+}
+
+.topbar__title {
+  font-size: var(--text-heading);
+  line-height: var(--leading-heading);
+}
+
+.topbar__end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  margin-left: auto;
+}
+
+.topbar__menu {
+  display: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-left: -10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.topbar__menu svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Selector de mes: píldora ‹ mes › */
+.month {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.month a,
+.month__off {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--color-text);
+  border-radius: var(--radius-pill);
+}
+
+.month a:hover {
+  background: var(--color-canvas);
+}
+
+.month__off {
+  color: var(--color-border-strong);
+}
+
+.month svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.8;
+}
+
+.month > span[aria-current] {
+  min-width: 112px;
+  text-align: center;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.m-short {
+  display: none;
+}
+
+/* ---------- Contenido ---------- */
+.view {
+  display: block;
+  padding: var(--space-8) var(--space-40) var(--space-48);
+}
+
+/* Entrada de cada sección: los bloques suben escalonados (style="--i: n"); el primero, sin espera.
+   Solo se anima transform: con opacidad 0 el contenido no se ve y Chrome no lo cuenta para el LCP. */
+.view > * {
+  animation: view-in var(--duration-slow) var(--ease-emphasized) both;
+  animation-delay: calc(var(--i, 0) * 50ms);
+}
+
+/* Al llegar deslizando desde otra sección (ver "Cambio de sección") los bloques ya están puestos:
+   animarlos sobre el deslizamiento repintaría la captura nueva en cada frame. */
+.vt-seccion .view > * {
+  animation: none;
+}
+
+@keyframes view-in {
+  from {
+    transform: translateY(8px);
+  }
+}
+
+/* ---------- Componentes compartidos por las secciones ---------- */
+.label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  letter-spacing: var(--tracking-caption);
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+  letter-spacing: var(--tracking-title);
+  font-weight: var(--weight-semibold);
+}
+
+/* Cifra principal: números proporcionales (sin .num), como dice la sección Números. */
+.big {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  line-height: var(--leading-display);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.4px;
+  white-space: nowrap;
+}
+
+.mid {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.income {
+  color: var(--color-income);
+}
+
+.sub {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-caption);
+}
+
+.link-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-caption);
+  letter-spacing: var(--tracking-caption);
+}
+
+.card {
+  padding: var(--card-padding);
+  background: var(--color-canvas);
+  border-radius: var(--radius-card);
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-12);
+  margin-bottom: var(--space-20);
+}
+
+/* Filas de lista: ícono, nombre con detalle y monto alineado a la derecha. */
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rows li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12) 0;
+  border-top: 1px solid var(--color-fill-muted);
+}
+
+.rows li:first-child {
+  border-top: 0;
+}
+
+.rows .num {
+  white-space: nowrap;
+}
+
+.rows__name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.icon-bubble {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+}
+
+.icon-bubble svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Sección todavía sin contenido. */
+.pending {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-12);
+  padding: var(--space-64) var(--space-28);
+  background: var(--color-canvas);
+  border-radius: var(--radius-card);
+  text-align: center;
+}
+
+.pending p {
+  max-width: 420px;
+  color: var(--color-text-secondary);
+}
+
+.pending .btn {
+  margin-top: var(--space-8);
+}
+
+.pending__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: var(--space-4);
+  background: var(--color-text);
+  color: var(--color-on-primary);
+  border-radius: 16px;
+}
+
+.pending__icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+/* ---------- Controles de formulario de la app (filtros y diálogo de movimiento) ---------- */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Control segmentado: radios nativos ocultos; la opción elegida es una píldora blanca con
+   --ring-strong ("control seleccionado" en tokens.css). */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 3px;
+  border: 0;
+  background: var(--color-canvas);
+  border-radius: var(--radius-pill);
+}
+
+.segmented__option {
+  position: relative;
+  flex: 1 1 auto;
+}
+
+.segmented__option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segmented__option span {
+  display: block;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  letter-spacing: var(--tracking-caption);
+  text-align: center;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.segmented__option input:hover + span {
+  color: var(--color-text);
+}
+
+.segmented__option input:checked + span {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--ring-strong);
+}
+
+.segmented__option input:focus-visible + span {
+  box-shadow: var(--ring-strong), var(--focus-ring);
+}
+
+/* Select en píldora: mismo borde, hover y foco que .float-field__input del login. */
+.select {
+  height: 36px;
+  min-width: 0;
+  padding: 0 36px 0 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5 9 4.5' fill='none' stroke='%231d1d1f' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 14px center / 12px;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-caption);
+  letter-spacing: var(--tracking-caption);
+  cursor: pointer;
+  appearance: none;
+  transition: border-color var(--duration-default) var(--ease-out), box-shadow var(--duration-default) var(--ease-out);
+}
+
+.select:hover {
+  border-color: var(--color-text);
+}
+
+.select:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
+}
+
+.select--lg {
+  height: 56px;
+  padding: 0 44px 0 20px;
+  background-position: right 18px center;
+  font-size: var(--text-body);
+  letter-spacing: var(--tracking-body);
+}
+
+/* La misma flecha como <svg> en el HTML: <div class="select-flecha"><select>…</select><svg>…</svg></div>.
+   La imagen data-URI de .select obliga al navegador a montar un documento SVG la primera vez que
+   la pinta (~17 ms con CPU ×4 al abrir "Nuevo movimiento" en el Resumen, donde no hay otro select).
+   Por ahora solo la usa ese diálogo; los demás select siguen con la imagen de fondo. */
+.select-flecha {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.select-flecha > .select {
+  background-image: none;
+}
+
+.select-flecha > svg {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.select-flecha > .select--lg + svg {
+  right: 18px;
+}
+
+.btn--danger {
+  padding: 7px 15px;
+  background: var(--color-danger);
+  color: var(--color-on-primary);
+}
+
+.btn--danger:hover {
+  filter: brightness(0.92);
+}
+
+.btn--danger:focus-visible {
+  box-shadow: 0 0 0 3px rgba(215, 0, 21, 0.25);
+}
+
+/* ---------- Diálogo de movimiento ----------
+ * Tarjeta blanca de 28px sin sombra (como la del login) sobre el mismo fondo oscuro del cajón
+ * del celular. En el celular ocupa toda la pantalla.
+ */
+.dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 0;
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  color: var(--color-text);
+  overflow: auto;
+}
+
+.dialog::backdrop {
+  background: rgba(29, 29, 31, 0.18);
+}
+
+.dialog[open] {
+  animation: dialog-in var(--duration-slow) var(--ease-emphasized);
+}
+
+.dialog[open]::backdrop {
+  animation: backdrop-in var(--duration-slow) var(--ease-out);
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.dialog__body {
+  display: grid;
+  gap: var(--space-16);
+  padding: var(--card-padding);
+}
+
+.dialog__body[hidden] {
+  display: none;
+}
+
+.dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.dialog__close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: var(--color-canvas);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.dialog__close:hover {
+  background: var(--color-fill-muted);
+}
+
+.dialog__close:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.dialog__close svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.dialog__tipo {
+  display: flex;
+}
+
+.dialog__tipo .segmented__option span {
+  padding: 8px 14px;
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+}
+
+.dialog__monto {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+}
+
+/* Asistente con Gemini: bloque gris claro arriba del formulario, solo al crear. */
+.dialog__ia {
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  background: var(--color-canvas);
+  border-radius: var(--radius-inner);
+}
+
+.dialog__ia[hidden] {
+  display: none;
+}
+
+.ia-fila {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.ia-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 var(--space-16);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+  transition: border-color var(--duration-default) var(--ease-out), box-shadow var(--duration-default) var(--ease-out);
+}
+
+.ia-input:hover {
+  border-color: var(--color-text);
+}
+
+.ia-input:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
+}
+
+.ia-boton {
+  flex: none;
+  height: 40px;
+  padding: 0 var(--space-16);
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+}
+
+.ia-boton.is-loading {
+  background: var(--color-text);
+}
+
+.ia-boton.is-loading .ia-icono {
+  display: none;
+}
+
+.ia-icono {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.dialog__ia .field__message:not(.field__message--error),
+.asistente__panel .field__message:not(.field__message--error) {
+  color: var(--color-text-secondary);
+}
+
+/* Categoría nueva que propone el asistente (debajo del select de categoría). */
+.categoria-nueva {
+  display: grid;
+  gap: var(--space-8);
+  margin-top: var(--space-8);
+}
+
+.categoria-nueva__texto {
+  color: var(--color-text-secondary);
+}
+
+.categoria-nueva__texto .ia-icono {
+  width: 11px;
+  height: 11px;
+  margin-right: 2px;
+  vertical-align: -1px;
+}
+
+.categoria-nueva__cambiar {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.categoria-nueva__cambiar:hover {
+  text-decoration: underline;
+}
+
+.categoria-nueva__input {
+  flex: none;
+  width: 100%;
+  height: 36px;
+}
+
+.dialog__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-12);
+}
+
+.dialog__actions {
+  display: grid;
+  gap: var(--space-12);
+  margin-top: var(--space-4);
+}
+
+.dialog__actions--row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Tonos del ícono de una cuenta (única excepción de color; ver tokens.css). */
+.tono-azul { background: var(--tono-azul-bg); color: var(--tono-azul); }
+.tono-indigo { background: var(--tono-indigo-bg); color: var(--tono-indigo); }
+.tono-violeta { background: var(--tono-violeta-bg); color: var(--tono-violeta); }
+.tono-ciruela { background: var(--tono-ciruela-bg); color: var(--tono-ciruela); }
+.tono-petroleo { background: var(--tono-petroleo-bg); color: var(--tono-petroleo); }
+.tono-cafe { background: var(--tono-cafe-bg); color: var(--tono-cafe); }
+.tono-arena { background: var(--tono-arena-bg); color: var(--tono-arena); }
+.tono-grafito { background: var(--tono-grafito-bg); color: var(--tono-grafito); }
+
+/* Diálogo de pago de tarjeta (Cuentas y Movimientos). */
+.pago-detalle {
+  margin-top: var(--space-4);
+}
+
+.pago-rapido {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.pago-rapido .btn {
+  font-size: var(--text-caption);
+}
+
+.pago-despues {
+  min-height: 1.4em;
+  text-align: center;
+}
+
+.dialog__confirm p {
+  color: var(--color-text-secondary);
+}
+
+.dialog__confirm strong {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.dialog__delete {
+  justify-self: start;
+  padding: var(--space-4) 0;
+  border: 0;
+  background: none;
+  color: var(--color-danger);
+  font: inherit;
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+  cursor: pointer;
+}
+
+.dialog__delete[hidden] {
+  display: none;
+}
+
+.dialog__delete:hover {
+  text-decoration: underline;
+}
+
+.dialog__delete:focus-visible {
+  outline: none;
+  border-radius: var(--radius-small);
+  box-shadow: 0 0 0 3px rgba(215, 0, 21, 0.25);
+}
+
+/* ---------- Asistente de la barra superior ----------
+ * Botón píldora como el selector de mes. El panel es opaco (superficie de menús) con el filo del
+ * vidrio y sin sombra: lleva un campo de texto y tiene que leerse sobre cualquier contenido.
+ */
+.asistente {
+  position: relative;
+}
+
+.asistente__boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px 0 14px;
+  border: 0;
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-small);
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.asistente__boton:hover,
+.asistente__boton[aria-expanded="true"] {
+  box-shadow: inset 0 0 0 1px var(--color-text);
+}
+
+.asistente__boton:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-border-strong), var(--focus-ring);
+}
+
+.asistente__flecha {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--duration-default) var(--ease-out);
+}
+
+.asistente__boton[aria-expanded="true"] .asistente__flecha {
+  transform: rotate(180deg);
+}
+
+.asistente__panel {
+  position: absolute;
+  top: calc(100% + var(--space-8));
+  right: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-12);
+  width: min(380px, calc(100vw - 32px));
+  padding: var(--space-20);
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-inner);
+  box-shadow: var(--glass-edge), 0 0 0 1px var(--color-fill-muted);
+  animation: asistente-in var(--duration-default) var(--ease-emphasized);
+}
+
+.asistente__panel[hidden] {
+  display: none;
+}
+
+@keyframes asistente-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.asistente__titulo {
+  font-weight: var(--weight-semibold);
+}
+
+.asistente__texto {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  line-height: var(--leading-small);
+  letter-spacing: var(--tracking-small);
+}
+
+.asistente__ejemplos {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.asistente__ejemplos ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.asistente__ejemplo {
+  padding: 5px 12px;
+  border: 0;
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-caption);
+  letter-spacing: var(--tracking-caption);
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.asistente__ejemplo:hover {
+  box-shadow: inset 0 0 0 1px var(--color-text);
+}
+
+.asistente__ejemplo:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--focus-ring);
+}
+
+/* Análisis del mes (Resumen): observaciones con viñeta, consejo en un bloque y nota de privacidad. */
+.analisis__cuerpo {
+  display: grid;
+  gap: var(--space-12);
+}
+
+.analisis__cuerpo:empty {
+  display: none;
+}
+
+.analisis__lista {
+  display: grid;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-small);
+  line-height: var(--leading-small);
+  letter-spacing: var(--tracking-small);
+}
+
+.analisis__lista li {
+  position: relative;
+  padding-left: var(--space-16);
+}
+
+.analisis__lista li::before {
+  content: "";
+  position: absolute;
+  top: 0.5em;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  background: var(--color-text);
+  border-radius: 50%;
+}
+
+.analisis__consejo {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-12) var(--space-16);
+  background: var(--color-canvas);
+  border-radius: var(--radius-small);
+  font-size: var(--text-small);
+  line-height: var(--leading-small);
+  letter-spacing: var(--tracking-small);
+}
+
+.analisis__consejo strong {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caption);
+}
+
+/* ---------- Ordenar Otros (Categorías) ---------- */
+.orden__panel {
+  width: min(420px, calc(100vw - 32px));
+}
+
+.orden__cuerpo {
+  display: grid;
+  gap: var(--space-8);
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.orden__cuerpo:empty {
+  display: none;
+}
+
+.orden__grupo {
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  background: var(--color-canvas);
+  border-radius: var(--radius-inner);
+}
+
+.orden__cabeza {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.orden__destino {
+  min-width: 0;
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+}
+
+.orden__nueva {
+  margin-left: 6px;
+  padding: 1px 7px;
+  background: var(--color-text);
+  color: var(--color-surface);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption);
+  vertical-align: 1px;
+}
+
+.orden__conteo {
+  color: var(--color-text-secondary);
+}
+
+.orden__aceptar {
+  flex: none;
+  height: 32px;
+  padding: 0 var(--space-12);
+  font-size: var(--text-caption);
+}
+
+.orden__aceptado {
+  flex: none;
+  color: var(--color-income);
+  font-size: var(--text-caption);
+}
+
+.orden__lista {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orden__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: 2px 0;
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+  cursor: pointer;
+}
+
+.orden__item input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-text);
+}
+
+.orden__item:has(input:not(:checked)) span {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+.is-aceptado .orden__item {
+  cursor: default;
+}
+
+.orden__resto {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  letter-spacing: var(--tracking-caption);
+}
+
+.analisis__reintentar {
+  justify-self: start;
+}
+
+.analisis__nota {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  letter-spacing: var(--tracking-caption);
+}
+
+.analisis__nota .ia-icono {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+}
+
+.analisis__esqueleto {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.analisis__esqueleto span {
+  height: 12px;
+  background: var(--color-fill-muted);
+  border-radius: var(--radius-pill);
+  animation: esqueleto 900ms var(--ease-out) infinite alternate;
+}
+
+.analisis__esqueleto span:nth-child(2) {
+  width: 85%;
+}
+
+.analisis__esqueleto span:nth-child(3) {
+  width: 60%;
+}
+
+@keyframes esqueleto {
+  to {
+    opacity: 0.45;
+  }
+}
+
+/* ---------- Aviso ("Movimiento guardado") ----------
+ * Píldora negra como "Nuevo movimiento" de la barra lateral. Sin sombra.
+ */
+.toast {
+  position: fixed;
+  bottom: var(--space-24);
+  left: 50%;
+  z-index: 50;
+  padding: 10px 18px;
+  background: var(--color-text);
+  border-radius: var(--radius-pill);
+  color: var(--color-on-primary);
+  font-size: var(--text-small);
+  line-height: var(--leading-small);
+  letter-spacing: var(--tracking-small);
+  transform: translateX(-50%);
+}
+
+.toast:not([hidden]) {
+  animation: toast-in var(--duration-slow) var(--ease-emphasized);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+
+/* ---------- Celular: la barra lateral se vuelve un cajón de vidrio ---------- */
+.scrim {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .shell,
+  .shell.is-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Flota sobre el contenido: por eso es el único lugar de la app con vidrio. */
+  .sidebar {
+    position: fixed;
+    top: var(--space-8);
+    bottom: var(--space-8);
+    left: var(--space-8);
+    width: 272px;
+    height: auto;
+    background: rgba(255, 255, 255, 0.86);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-radius: var(--radius-card);
+    box-shadow: var(--glass-edge);
+    transform: translateX(calc(-100% - var(--space-16)));
+    visibility: hidden;
+    transition: transform var(--duration-slow) var(--ease-emphasized), visibility 0s linear var(--duration-slow);
+  }
+
+  .is-collapsed .sb-label,
+  .is-collapsed .sb-group {
+    opacity: 1;
+  }
+
+  .shell.is-open .sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform var(--duration-slow) var(--ease-emphasized);
+  }
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    display: block;
+    visibility: hidden;
+    background: rgba(29, 29, 31, 0.18);
+    opacity: 0;
+    transition: opacity var(--duration-slow) var(--ease-out), visibility 0s linear var(--duration-slow);
+  }
+
+  .shell.is-open .scrim {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity var(--duration-slow) var(--ease-out);
+  }
+
+  .sb-toggle {
+    display: none;
+  }
+
+  .topbar {
+    height: 60px;
+    padding: 0 var(--space-20);
+  }
+
+  .topbar__title {
+    font-size: var(--text-title);
+    line-height: var(--leading-title);
+  }
+
+  .topbar__menu {
+    display: grid;
+  }
+
+  .month > span[aria-current] {
+    min-width: 0;
+    padding: 0 2px;
+  }
+
+  .m-long {
+    display: none;
+  }
+
+  .m-short {
+    display: inline;
+  }
+
+  .view {
+    padding: var(--space-8) var(--space-16) var(--space-32);
+  }
+
+  .dialog {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .dialog__pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* En el celular el botón queda solo con el ícono y el panel ocupa el ancho de la pantalla. */
+  .asistente__etiqueta,
+  .asistente__flecha {
+    display: none;
+  }
+
+  .asistente__boton {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .asistente__panel {
+    position: fixed;
+    top: 68px;
+    right: var(--space-16);
+    left: var(--space-16);
+    width: auto;
+  }
+}
+
+/* ---------- Movimiento reducido: todo cambia al instante ---------- */
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+
+  .shell,
+  .shell *,
+  .scrim,
+  .dialog,
+  .dialog::backdrop,
+  .dialog *,
+  .asistente *,
+  .toast {
+    animation: none !important;
+    transition: none !important;
+  }
+}

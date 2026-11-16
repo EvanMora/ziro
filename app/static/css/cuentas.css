@@ -1,0 +1,303 @@
+/*
+ * Sección Cuentas: totales arriba y dos columnas, Dinero | Tarjetas de crédito (opción A del
+ * diseño), sin desplazar la página. Solo usa variables de tokens.css y los componentes de app.css.
+ * Los tonos (.tono-*) son la única excepción de color y van solo en el cuadrado del ícono.
+ */
+
+/* ---------- Barra superior ---------- */
+.cuentas-nueva svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+/* ---------- Íconos y tonos ---------- */
+.cuenta-icono {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 12px;
+}
+
+.cuenta-icono svg,
+.cuenta-opcion__icono svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Los .tono-* están en app.css: también los usan las filas de pago de Movimientos. */
+
+/* ---------- Totales ---------- */
+.cuentas-totales {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  align-items: end;
+  gap: var(--space-8) var(--space-24);
+  margin-bottom: var(--gap-element);
+}
+
+.cuentas-totales--solo {
+  grid-template-columns: 1fr;
+}
+
+.cuentas-totales > div {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* ---------- Dos columnas ---------- */
+.cuentas-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap-element);
+  align-items: start;
+}
+
+.cuentas-lista li {
+  display: block;
+  padding: 0;
+}
+
+/* Filas que abren el diálogo de edición (cuentas.js les da role="button"). Más específico que
+   .cuentas-lista li, porque en Dinero la fila es el mismo <li>. */
+.cuentas-lista .cuentas-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  margin: 0 calc(var(--space-12) * -1);
+  border-radius: var(--radius-small);
+}
+
+.cuentas-fila[role="button"] {
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.cuentas-fila[role="button"]:hover {
+  background: var(--color-surface);
+}
+
+.cuentas-fila[role="button"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.cuentas-nombre {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cuentas-cero {
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Tarjetas ---------- */
+.cuentas-lista .cuentas-tarjeta {
+  padding-bottom: var(--space-16);
+}
+
+/* Una sola escala y un solo tono, como las barras de categorías. */
+.cuentas-barra {
+  height: 6px;
+  margin: 0 0 var(--space-8) 50px;
+  overflow: hidden;
+  background: var(--color-fill-muted);
+  border-radius: 3px;
+}
+
+.cuentas-barra span {
+  display: block;
+  height: 100%;
+  background: var(--color-text);
+  border-radius: 3px;
+}
+
+.cuentas-tarjeta__pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  margin-left: 50px;
+}
+
+.cuentas-pagar {
+  flex: none;
+  white-space: nowrap;
+  padding: 6px 14px;
+  font-size: var(--text-caption);
+}
+
+.cuentas-pagar[disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Fecha límite: a 5 días o menos, etiqueta de alerta (con texto, nunca solo color). */
+.cuentas-fecha--alerta {
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-weight: var(--weight-medium);
+}
+
+.cuentas-excedido {
+  color: var(--color-danger);
+}
+
+.cuentas-lista .cuentas-vacio {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-12);
+  padding: var(--space-8) 0;
+}
+
+/* Cuenta recién guardada: se resalta y el resaltado se desvanece. */
+.cuentas-lista li.is-saved .cuentas-fila {
+  animation: cuenta-guardada 1800ms var(--ease-out) both;
+}
+
+@keyframes cuenta-guardada {
+  from,
+  40% {
+    background: var(--color-income-bg);
+  }
+}
+
+/* ---------- Diálogo ---------- */
+.cuenta-nombre-fila {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+}
+
+.cuenta-nombre-fila .field {
+  flex: 1;
+}
+
+.cuenta-icono--grande {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+}
+
+/* Campos flotantes sin ícono a la izquierda. */
+.float-field__input.cuenta-sin-icono {
+  padding-left: var(--space-20);
+}
+
+.float-field__label.cuenta-sin-icono__label {
+  left: var(--space-20);
+}
+
+.cuenta-opciones {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cuenta-opciones legend {
+  margin-bottom: var(--space-8);
+  padding: 0;
+}
+
+.cuenta-opciones__lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.cuenta-opcion {
+  cursor: pointer;
+}
+
+.cuenta-opcion__icono,
+.cuenta-opcion__tono {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.cuenta-opcion__icono {
+  background: var(--color-canvas);
+  color: var(--color-text);
+}
+
+.cuenta-opcion__tono {
+  border-radius: var(--radius-pill);
+}
+
+.cuenta-opcion input:checked + span {
+  box-shadow: var(--ring-strong), 0 0 0 3px var(--color-surface), 0 0 0 4px var(--color-text);
+}
+
+.cuenta-opcion input:focus-visible + span {
+  box-shadow: var(--focus-ring);
+}
+
+.cuenta-opcion input:disabled + span {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* En la confirmación los párrafos van en gris (app.css); el error del campo sigue en rojo. */
+.dialog__confirm .field__message--error {
+  color: var(--color-danger);
+}
+
+/* ---------- Celular ---------- */
+@media (max-width: 760px) {
+  .cuentas-nueva {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+  }
+
+  .cuentas-nueva__texto {
+    display: none;
+  }
+
+  .cuentas-totales {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cuentas-totales > div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .cuentas-totales .mid {
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+
+  /* Una columna: primero las tarjetas (tienen fecha límite) y luego el dinero. */
+  .cuentas-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cuentas-tarjetas {
+    order: -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cuentas-lista li.is-saved .cuentas-fila {
+    animation: none;
+    background: var(--color-income-bg);
+  }
+}

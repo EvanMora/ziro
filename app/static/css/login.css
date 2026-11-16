@@ -1,0 +1,1023 @@
+/*
+ * Pantalla de inicio de sesión.
+ * Composición de la referencia (docs/design-referencia.md): titular centrado sobre blanco,
+ * debajo un escenario gris con el producto como protagonista y una cápsula blanca flotante
+ * con la acción principal. Aquí el producto es el dashboard y la cápsula es el formulario.
+ */
+
+/* Lo que sigue hasta "Titular" venía de styles.css, pero solo lo usa el login: aquí no bloquea
+   el pintado de las demás páginas. Este archivo se carga después de styles.css. */
+
+/* ---------- Navegación global ---------- */
+.global-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--nav-height);
+  background: var(--nav-bg);
+  -webkit-backdrop-filter: var(--nav-backdrop);
+  backdrop-filter: var(--nav-backdrop);
+  box-shadow: 0 1px 0 var(--color-fill-muted);
+}
+
+.global-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: var(--content-max);
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 var(--space-20);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+}
+
+.wordmark:hover {
+  text-decoration: none;
+}
+
+.global-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.global-nav__hint {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  letter-spacing: var(--tracking-caption);
+}
+
+/* Píldora negra del menú: llamativa sin competir con el azul de la acción principal.
+   El hueco y el peso los pone .btn: cuando esta regla estaba en styles.css iba antes que .btn
+   y su gap: 6px y su font-weight nunca se aplicaban; aquí ganarían y cambiarían el botón. */
+.nav-cta {
+  padding: 7px 12px 7px 15px;
+  animation: nav-cta-in var(--duration-slow) var(--ease-emphasized) 700ms both;
+}
+
+.nav-cta__arrow {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--duration-default) var(--ease-emphasized);
+}
+
+.nav-cta:hover .nav-cta__arrow,
+.nav-cta:focus-visible .nav-cta__arrow {
+  transform: translateX(3px);
+}
+
+@keyframes nav-cta-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (max-width: 600px) {
+  .global-nav__hint {
+    display: none;
+  }
+}
+
+.wordmark__mark {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+/* ---------- Botones y campos del login ---------- */
+/* Barrido de luz al pasar el mouse. */
+.btn--shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.btn--shine::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  transform: translateX(-120%);
+}
+
+.btn--shine:hover:not([disabled])::after {
+  transform: translateX(120%);
+  transition: transform 700ms var(--ease-out);
+}
+
+.float-field__input--action {
+  padding-right: 56px;
+}
+
+.float-field__action {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.float-field__action:hover {
+  background: var(--color-canvas);
+}
+
+.float-field__action svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* La raya del ojo se dibuja cuando la contraseña está visible. */
+.eye-slash {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--duration-slow) var(--ease-emphasized);
+}
+
+.is-revealed .eye-slash {
+  stroke-dashoffset: 0;
+}
+
+/* Casilla con check que se dibuja. El input real queda encima, invisible, para teclado y lectores. */
+.check-fancy {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+  cursor: pointer;
+}
+
+.check-fancy input {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.check-fancy__box {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  transition: background-color var(--duration-default) var(--ease-out), box-shadow var(--duration-default) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.check-fancy:hover .check-fancy__box {
+  box-shadow: inset 0 0 0 1px var(--color-text);
+}
+
+.check-fancy input:active + .check-fancy__box {
+  transform: scale(0.9);
+}
+
+.check-fancy input:focus-visible + .check-fancy__box {
+  box-shadow: inset 0 0 0 1px var(--color-text), var(--focus-ring);
+}
+
+.check-fancy input:checked + .check-fancy__box {
+  background: var(--color-text);
+  box-shadow: inset 0 0 0 1px var(--color-text);
+}
+
+.check-fancy__box svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--color-on-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--duration-slow) var(--ease-emphasized);
+}
+
+.check-fancy input:checked + .check-fancy__box svg {
+  stroke-dashoffset: 0;
+}
+
+/* Tiene que ir después de .nav-cta: con la misma especificidad gana la última. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-cta {
+    animation: none;
+  }
+}
+
+/* ---------- Titular ---------- */
+.login-hero {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-48) var(--space-20) 0;
+  text-align: center;
+}
+
+.login-hero__kicker {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  letter-spacing: var(--tracking-title);
+}
+
+.login-hero__title {
+  margin-top: var(--space-12);
+  font-size: var(--text-hero);
+  line-height: var(--leading-hero);
+  letter-spacing: var(--tracking-hero);
+}
+
+.login-hero__lead {
+  max-width: 34ch;
+  margin: var(--space-16) auto 0;
+  color: var(--color-text-secondary);
+  text-wrap: balance;
+}
+
+/* ---------- Escenario ---------- */
+.login-stage {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: min(var(--content-max), calc(100% - 2 * var(--space-20)));
+  margin: var(--space-40) auto 0;
+  min-height: 620px;
+  padding: var(--space-48) var(--space-20) var(--space-64);
+  overflow: hidden;
+  background: var(--color-canvas);
+  border-radius: var(--radius-card);
+}
+
+/* ---------- Ventana de inicio de sesión ----------
+ * Vidrio grueso: casi opaco para que el texto se lea siempre igual, pero deja pasar el color
+ * de las barras. Lleva el reflejo que sigue al cursor (login-card.js) y un haz de luz que
+ * recorre el borde al aparecer y mientras espera al servidor.
+ */
+@property --rim-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  width: 100%;
+  max-width: 420px;
+  padding: var(--space-32) var(--card-padding) var(--card-padding);
+  background: rgba(255, 255, 255, 0.86);
+  /* 12px basta: el fondo al 86 % ya tapa casi todo y cada px de radio cuesta en cada frame. */
+  -webkit-backdrop-filter: blur(12px) saturate(1.8);
+  backdrop-filter: blur(12px) saturate(1.8);
+  border-radius: var(--radius-card);
+  box-shadow: var(--glass-edge);
+  animation: card-in 300ms var(--ease-emphasized) both;
+}
+
+/* Reflejo especular. */
+.login-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  border-radius: inherit;
+  background: radial-gradient(320px circle at var(--glare-x, 50%) var(--glare-y, -10%), rgba(255, 255, 255, 0.9), transparent 70%);
+  pointer-events: none;
+}
+
+/* Haz de luz en el borde: una vuelta al aparecer; en bucle mientras carga.
+   Sigue girando con --rim-angle: rotarlo con transform exigiría un contenedor quieto con la
+   máscara del aro y el degradado girando dentro, y un pseudo-elemento no puede tener hijos.
+   Al menos va en su propia capa: cada vuelta repinta el aro, no el texto de la tarjeta. */
+.login-card::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  padding: 2px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--rim-angle), transparent 0deg 220deg, rgba(124, 199, 146, 0.5) 270deg,
+      var(--color-income) 320deg, #7cc792 340deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+  will-change: transform;
+  animation: rim-sweep 1400ms var(--ease-out) 180ms both;
+}
+
+.login-card.is-busy::after {
+  animation: rim-loop 1100ms linear infinite;
+}
+
+.login-card.is-done::after {
+  background: rgba(30, 125, 55, 0.7);
+  animation: rim-fade var(--duration-slow) var(--ease-out) both;
+}
+
+/* Tras entrar, la tarjeta queda sin animación propia; así la sacudida no repite la entrada. */
+.login-card.is-ready {
+  animation: none;
+}
+
+.login-card.is-shaking {
+  animation: card-shake 360ms var(--ease-out);
+}
+
+/* Solo opacidad y transformación: se animan en el compositor. */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+}
+
+@keyframes rim-sweep {
+  0% {
+    --rim-angle: 0deg;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    --rim-angle: 360deg;
+    opacity: 0;
+  }
+}
+
+@keyframes rim-loop {
+  to {
+    --rim-angle: 360deg;
+  }
+}
+
+@keyframes rim-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes card-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-8px);
+  }
+  40% {
+    transform: translateX(7px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+/* Cada bloque entra en cascada junto con la tarjeta: todo el contenido está en unos 280 ms.
+   La alerta usa alert-in de styles.css (.alert:not([hidden]) pesa más que .login-form > *). */
+.login-card__head > *,
+.login-form > *,
+.login-card__footer {
+  animation: rise-in 160ms var(--ease-emphasized) both;
+}
+
+.login-card__mark { animation-delay: 20ms; }
+.login-card__greeting { animation-delay: 32ms; }
+.login-card__title { animation-delay: 44ms; }
+.login-card__lead { animation-delay: 56ms; }
+.login-form > :nth-child(2) { animation-delay: 68ms; }
+.login-form > :nth-child(3) { animation-delay: 80ms; }
+.login-form > :nth-child(4) { animation-delay: 92ms; }
+.login-form > :nth-child(5) { animation-delay: 104ms; }
+.login-card__footer { animation-delay: 116ms; }
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.login-card__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Marca: el símbolo de Ziro (ver _logo.html). La baldosa de tinta tiene sus proporciones (radio de
+   120/512) y la Z se dibuja sola: primero el trazo que baja (lo que sale) y luego el que sube (lo que entra). */
+.login-card__mark {
+  display: block;
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--space-20);
+  background: var(--color-text);
+  border-radius: 11px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.login-card__mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.login-card__mark-line {
+  fill: none;
+  stroke: var(--color-on-primary);
+  stroke-width: 58.24;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  animation: pv-draw 560ms var(--ease-emphasized) 140ms both;
+}
+
+.login-card__mark-line--entra {
+  animation-delay: 480ms;
+}
+
+.login-card__greeting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-small);
+}
+
+.login-card__greeting-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.login-card__title {
+  margin-top: var(--space-4);
+  font-size: var(--text-heading);
+  line-height: var(--leading-heading);
+  letter-spacing: var(--tracking-heading);
+}
+
+.login-card__lead {
+  margin-top: var(--space-8);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  line-height: var(--leading-small);
+  letter-spacing: var(--tracking-small);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  margin-top: var(--space-24);
+}
+
+.login-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: 0 var(--space-4);
+}
+
+.login-form__link {
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+}
+
+.login-card__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  margin-top: var(--space-24);
+  padding-top: var(--space-20);
+  border-top: 1px solid rgba(29, 29, 31, 0.08);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  letter-spacing: var(--tracking-small);
+  text-align: center;
+}
+
+.login-footer {
+  padding: var(--space-28) var(--space-20) var(--space-40);
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  letter-spacing: var(--tracking-caption);
+  text-align: center;
+}
+
+/* ---------- Vista previa del producto ----------
+ * Decorativa (aria-hidden, inert): no es interactiva, por eso no lleva tooltips.
+ * El dashboard real sí debe tenerlos.
+ * Desvío consciente de la referencia: los paneles usan vidrio líquido (translúcidos y
+ * con brillo en el borde) porque flotan sobre la gráfica de fondo. Siguen sin sombras.
+ */
+.preview {
+  /* Desenfoque más corto que el del token: los paneles se repintan al mover el cursor. */
+  --glass-blur: blur(12px) saturate(1.8);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Fondo decorativo: la forma del ahorro mensual como cápsulas grandes, sin ejes ni texto. */
+.pv-savings {
+  position: absolute;
+  right: var(--space-24);
+  bottom: 0;
+  left: var(--space-24);
+  height: 72%;
+  transform: translate3d(calc(var(--px, 0) * 6px), calc(var(--py, 0) * 4px), 0);
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+
+.pv-savings__plot {
+  display: flex;
+  gap: var(--space-12);
+  height: 100%;
+}
+
+.pv-savings__slot {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+}
+
+/* Barras de vidrio verde: translúcidas, con brillo en el borde superior.
+   Sin backdrop-filter: detrás solo está el gris liso del escenario, así que no cambiaba nada. */
+.pv-savings__col {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(124, 199, 146, 0.55) 0%, rgba(255, 255, 255, 0.35) 100%);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    inset 0 18px 24px -18px rgba(255, 255, 255, 0.9);
+  transform-origin: bottom;
+  animation: pv-grow-y 620ms var(--ease-emphasized) both;
+  animation-delay: calc(100ms + var(--i, 0) * 45ms);
+}
+
+/* El mes actual, con el verde de ingreso más presente. */
+.pv-savings__col.is-current {
+  background: linear-gradient(180deg, rgba(30, 125, 55, 0.75) 0%, rgba(124, 199, 146, 0.4) 100%);
+}
+
+/* Columnas de paneles de vidrio */
+.preview__column {
+  position: absolute;
+  top: var(--space-48);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  width: 268px;
+  transform: translate3d(calc(var(--px, 0) * -10px), calc(var(--py, 0) * -8px), 0);
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+
+.preview__column--left {
+  left: var(--space-32);
+}
+
+/* Ambas columnas terminan sobre el eje para no tapar los meses (el actual va a la derecha). */
+.preview__column--right {
+  right: var(--space-32);
+}
+
+.glass {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-inner);
+  box-shadow: var(--glass-edge);
+}
+
+/* Reflejo especular: sigue al cursor (posición la pone login-preview.js). */
+.glass::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: radial-gradient(220px circle at var(--glare-x, 20%) var(--glare-y, -20%), rgba(255, 255, 255, 0.7), transparent 70%);
+  opacity: 0.9;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+
+.pv-card {
+  padding: var(--space-20);
+  animation: pv-glass-in var(--duration-slow) var(--ease-emphasized) both;
+  animation-delay: calc(160ms + var(--i, 0) * 90ms);
+}
+
+.pv-label,
+.pv-title {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  letter-spacing: var(--tracking-caption);
+}
+
+.pv-title {
+  margin-bottom: var(--space-12);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* Cifra destacada: números proporcionales (las tabulares se ven sueltas en tamaños grandes). */
+.pv-balance {
+  margin-top: var(--space-4);
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: var(--weight-semibold);
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+}
+
+.pv-delta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  color: var(--color-income);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caption);
+  animation: pv-fade 240ms var(--ease-out) 1000ms both;
+}
+
+.pv-delta span {
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-regular);
+}
+
+.pv-delta svg,
+.pv-note svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pv-spark {
+  display: block;
+  margin-top: var(--space-12);
+  overflow: visible;
+}
+
+.pv-spark__line {
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  animation: pv-draw 720ms var(--ease-emphasized) 420ms both;
+}
+
+.pv-spark__area {
+  fill: var(--color-text);
+  opacity: 0.08;
+  animation: pv-fade-area 320ms var(--ease-out) 900ms both;
+}
+
+.pv-spark__dot {
+  fill: var(--color-text);
+  stroke: var(--color-surface);
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pv-pop 240ms var(--ease-emphasized) 1080ms both;
+}
+
+.pv-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-12);
+  margin-top: var(--space-12);
+  padding-top: var(--space-12);
+  border-top: 1px solid rgba(29, 29, 31, 0.08);
+}
+
+.pv-amount {
+  margin-top: var(--space-4);
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-small);
+}
+
+.pv-amount--income {
+  color: var(--color-income);
+}
+
+/* Gastos por categoría: barras de un solo tono; la mayor en tinta. */
+.pv-cats,
+.pv-budgets,
+.pv-moves {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  letter-spacing: var(--tracking-caption);
+}
+
+.pv-cats {
+  gap: var(--space-8);
+}
+
+.pv-cats li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: var(--space-4);
+}
+
+.pv-cats__bar {
+  grid-column: 1 / -1;
+  height: 6px;
+  background: var(--chart-ink-muted);
+  border-radius: 0 4px 4px 0;
+  transform-origin: left;
+  animation: pv-grow-x 480ms var(--ease-emphasized) both;
+  animation-delay: calc(560ms + var(--i, 0) * 60ms);
+}
+
+.pv-cats__bar.is-top {
+  background: var(--color-text);
+}
+
+/* Presupuestos: el relleno lleva la severidad; la pista es un paso más claro del mismo tono. */
+.pv-budgets {
+  gap: var(--space-12);
+}
+
+.pv-row,
+.pv-moves li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.pv-track {
+  height: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+  background: rgba(29, 29, 31, 0.08);
+  border-radius: var(--radius-pill);
+}
+
+.pv-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-text);
+  border-radius: inherit;
+  transform-origin: left;
+  animation: pv-grow-x 520ms var(--ease-emphasized) both;
+  animation-delay: calc(520ms + var(--i, 0) * 70ms);
+}
+
+.is-warning .pv-track {
+  background: var(--color-warning-bg);
+}
+
+.is-warning .pv-fill {
+  background: var(--color-warning);
+}
+
+.is-danger .pv-track {
+  background: var(--color-danger-bg);
+}
+
+.is-danger .pv-fill {
+  background: var(--color-danger);
+}
+
+.pv-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  color: var(--color-text-secondary);
+}
+
+.is-warning .pv-note {
+  color: var(--color-warning);
+}
+
+.is-danger .pv-note {
+  color: var(--color-danger);
+}
+
+/* Movimientos */
+.pv-moves li {
+  justify-content: flex-start;
+  padding: 6px 0;
+  animation: pv-fade-up 240ms var(--ease-out) both;
+  animation-delay: calc(640ms + var(--i, 0) * 60ms);
+}
+
+.pv-moves li > span:nth-child(2) {
+  flex: 1;
+}
+
+.pv-moves__icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(29, 29, 31, 0.06);
+}
+
+.pv-moves__icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- Animaciones de entrada ---------- */
+@keyframes pv-glass-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+
+@keyframes pv-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes pv-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes pv-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pv-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pv-fade-area {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.08;
+  }
+}
+
+@keyframes pv-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes pv-pop {
+  from {
+    transform: scale(0);
+  }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1180px) {
+  .preview {
+    display: none;
+  }
+
+  .login-stage {
+    min-height: 0;
+  }
+
+  /* Sin vista previa detrás solo queda el gris liso: el desenfoque no aporta nada. */
+  .login-card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .login-hero {
+    padding-top: var(--space-32);
+  }
+
+  .login-stage {
+    min-height: 0;
+    width: 100%;
+    margin-top: var(--space-28);
+    padding: var(--space-16) var(--space-12) var(--space-24);
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+  }
+
+  .login-card {
+    padding: var(--space-24) var(--card-padding) var(--card-padding);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card,
+  .login-card *,
+  .login-card::after,
+  .preview *,
+  .preview *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .preview__column,
+  .pv-savings {
+    transform: none;
+  }
+
+  .login-card:not(.is-done)::after {
+    opacity: 0;
+  }
+}
+
+
+/* Pista neutra bajo un campo del registro («Mínimo 8 caracteres.»). Mientras el campo muestra su
+ * error, la pista se oculta para no repetir lo mismo. */
+.field__message--info {
+  color: var(--color-text-secondary);
+}
+
+.field__message--error:not([hidden]) ~ .field__message--info {
+  display: none;
+}

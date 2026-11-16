@@ -1,0 +1,238 @@
+/*
+ * Sección Movimientos: totales, filtros y lista agrupada por día.
+ * Solo usa variables de tokens.css y los componentes de app.css (.card, .rows, .segmented, .select).
+ */
+
+/* ---------- Totales ---------- */
+.totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-8) var(--space-24);
+}
+
+.totals > div {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.totals__note {
+  grid-column: 1 / -1;
+}
+
+/* ---------- Filtros ---------- */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+  margin: var(--gap-element) 0;
+}
+
+.search {
+  position: relative;
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.search svg {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--color-text-secondary);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.search__input {
+  width: 100%;
+  height: 36px;
+  padding: 0 16px 0 38px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-caption);
+  letter-spacing: var(--tracking-caption);
+  transition: border-color var(--duration-default) var(--ease-out), box-shadow var(--duration-default) var(--ease-out);
+}
+
+.search__input:hover {
+  border-color: var(--color-text);
+}
+
+.search__input:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
+}
+
+.search__input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+/* En escritorio el panel siempre se ve: el resumen "Filtros" solo existe en el celular. */
+.filters__more {
+  display: contents;
+}
+
+.filters__toggle {
+  display: none;
+}
+
+.filters__panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.filters__clear {
+  font-size: var(--text-caption);
+  letter-spacing: var(--tracking-caption);
+}
+
+/* Con JS los filtros se aplican solos; el botón queda solo para quien no tiene JS. */
+.js .filters__submit {
+  display: none;
+}
+
+/* ---------- Lista por día ---------- */
+.movs {
+  display: grid;
+  gap: var(--space-20);
+}
+
+.day__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-12);
+  margin: 0 0 var(--space-4);
+  font-weight: var(--weight-medium);
+}
+
+.day__head .label {
+  font-weight: var(--weight-medium);
+}
+
+/* Las filas son clicables solo con JS (movimientos.js les da role="button"). */
+.movs__row[role="button"] {
+  margin: 0 calc(var(--space-12) * -1);
+  padding-right: var(--space-12);
+  padding-left: var(--space-12);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.movs__row[role="button"]:hover {
+  background: var(--color-surface);
+}
+
+.movs__row[role="button"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Fila recién guardada: se resalta y el resaltado se desvanece. */
+.movs__row.is-saved {
+  animation: row-saved 1800ms var(--ease-out) both;
+}
+
+@keyframes row-saved {
+  from,
+  40% {
+    background: var(--color-income-bg);
+  }
+}
+
+/* Pago de tarjeta: monto en gris y sin signo, porque no es gasto ni ingreso. El ícono lleva el
+   tono de la tarjeta (los .tono-* están en app.css). */
+.movs__neutro {
+  color: var(--color-text-secondary);
+}
+
+.movs__pago-icono svg {
+  stroke: currentColor;
+}
+
+.movs__empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-12);
+  padding: var(--space-48) var(--space-16);
+  text-align: center;
+}
+
+.movs__empty p {
+  max-width: 420px;
+  color: var(--color-text-secondary);
+}
+
+.movs__empty .btn {
+  margin-top: var(--space-8);
+}
+
+/* ---------- Celular ---------- */
+@media (max-width: 760px) {
+  .totals {
+    gap: var(--space-4) var(--space-12);
+  }
+
+  .totals .mid {
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+
+  .search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  /* Tipo, cuenta y categoría van en un desplegable "Filtros · N". */
+  .filters__more {
+    display: block;
+    flex: 1 1 100%;
+  }
+
+  .filters__toggle {
+    display: inline-flex;
+    list-style: none;
+  }
+
+  .filters__toggle::-webkit-details-marker {
+    display: none;
+  }
+
+  .filters__panel {
+    flex-direction: column;
+    align-items: stretch;
+    margin-top: var(--space-12);
+    padding: var(--space-16);
+    background: var(--color-canvas);
+    border-radius: var(--radius-inner);
+  }
+
+  .filters__panel .segmented {
+    display: flex;
+    background: var(--color-surface);
+  }
+
+  .filters__panel .select {
+    width: 100%;
+    height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .movs__row.is-saved {
+    animation: none;
+    background: var(--color-income-bg);
+  }
+}

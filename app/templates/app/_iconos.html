@@ -1,0 +1,41 @@
+{# Íconos de trazo de la app. Todos usan currentColor y heredan el grosor de su contenedor. #}
+{% macro seccion(nombre) -%}
+<svg viewBox="0 0 20 20" aria-hidden="true">
+  {%- if nombre == "resumen" -%}<rect x="3" y="3" width="6" height="7" rx="2"/><rect x="11" y="3" width="6" height="4" rx="2"/><rect x="11" y="9" width="6" height="8" rx="2"/><rect x="3" y="12" width="6" height="5" rx="2"/>
+  {%- elif nombre == "movimientos" -%}<path d="M4 7h10l-3-3M16 13H6l3 3"/>
+  {%- elif nombre == "cuentas" -%}<rect x="2.5" y="5" width="15" height="11" rx="3"/><path d="M2.5 9h15M6 13h3"/>
+  {%- elif nombre == "categorias" -%}<path d="M10.5 3H16a1 1 0 0 1 1 1v5.5L9.5 17 3 10.5z"/><circle cx="13.5" cy="6.5" r="1.2"/>
+  {%- elif nombre == "presupuestos" -%}<circle cx="10" cy="10" r="7"/><path d="M10 3v7l5 4"/>
+  {%- elif nombre == "metas" -%}<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3.5"/><circle cx="10" cy="10" r=".6"/>
+  {%- endif -%}
+</svg>
+{%- endmacro %}
+
+{# Ícono de cada categoría por defecto; las categorías nuevas usan la etiqueta genérica. #}
+{% macro categoria(nombre) -%}
+<svg viewBox="0 0 16 16" aria-hidden="true">
+  {%- if nombre == "Salario" -%}<path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/>
+  {%- elif nombre == "Arriendo" -%}<path d="M2.5 7.5L8 3l5.5 4.5M4 6.5V13h8V6.5"/>
+  {%- elif nombre == "Mercado" -%}<path d="M2 3h2l1.5 7h7L14 5H5"/><circle cx="6.5" cy="13" r="1"/><circle cx="11.5" cy="13" r="1"/>
+  {%- elif nombre == "Transporte" -%}<rect x="3" y="2.5" width="10" height="9" rx="2"/><path d="M3 7.5h10M5 11.5v2M11 11.5v2"/>
+  {%- elif nombre == "Ocio" -%}<rect x="2" y="4" width="12" height="8" rx="2"/><path d="M6.5 6.5v3l2.5-1.5z"/>
+  {%- else -%}<path d="M8.5 2.5H13a.5.5 0 0 1 .5.5v4.5L7.5 13.5 2.5 8.5z"/><circle cx="10.8" cy="5.2" r=".9"/>
+  {%- endif -%}
+</svg>
+{%- endmacro %}
+
+{# Ícono de una cuenta (lo elige la persona; ver Icono en app/schemas/cuentas.py). Va dentro de un
+   .cuenta-icono con su .tono-<nombre>. #}
+{% macro cuenta(icono) -%}
+<svg viewBox="0 0 20 20" aria-hidden="true">
+  {%- if icono == "banco" -%}<path d="M3 8l7-4.5L17 8M4.5 8v7M8 8v7M12 8v7M15.5 8v7M3 16.5h14"/>
+  {%- elif icono == "alcancia" -%}<ellipse cx="9.5" cy="11" rx="6" ry="4.5"/><path d="M8 6.5h3M15.5 9.5l2-1v4l-2-1M6.5 15v2M12.5 15v2"/><circle cx="12.5" cy="9.8" r=".5"/>
+  {%- elif icono == "billetera" -%}<path d="M14 6.5V4H4.5A1.5 1.5 0 0 0 3 5.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15V8a1.5 1.5 0 0 0-1.5-1.5H4.5"/><path d="M13 11.5h4"/>
+  {%- elif icono == "celular" -%}<rect x="6" y="2.5" width="8" height="15" rx="2"/><path d="M9 15h2"/>
+  {%- elif icono == "billetes" -%}<rect x="2.5" y="5.5" width="15" height="9" rx="2"/><circle cx="10" cy="10" r="2"/><path d="M5.5 10h.01M14.5 10h.01"/>
+  {%- elif icono == "tarjeta" -%}<rect x="2.5" y="4.5" width="15" height="11" rx="2"/><path d="M2.5 8h15M5.5 12.5h3"/>
+  {%- elif icono == "monedas" -%}<ellipse cx="8" cy="6" rx="4.5" ry="2"/><path d="M3.5 6v3c0 1.1 2 2 4.5 2s4.5-.9 4.5-2V6M3.5 9v3c0 1.1 2 2 4.5 2"/><circle cx="13.5" cy="13" r="3.5"/>
+  {%- elif icono == "maletin" -%}<rect x="2.5" y="6.5" width="15" height="10" rx="2"/><path d="M7 6.5V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 13 5v1.5M2.5 11h15"/>
+  {%- endif -%}
+</svg>
+{%- endmacro %}

@@ -1,0 +1,9 @@
+{#
+  Símbolo de Ziro ("Flujo"): una Z hecha de dos trazos iguales girados 180°. Uno baja (lo que sale)
+  y el otro sube (lo que entra); juntos forman la letra y el saldo cuadrado. La Z es un recorte
+  transparente del cuadrado, que toma el color del texto (currentColor). Ver docs/design-system.md.
+  Los íconos de archivo (favicon y apple-touch-icon) están en static/img y usan la misma geometría.
+#}
+{% macro simbolo(clase="") -%}
+<svg class="{{ clase }}" viewBox="0 0 512 512" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M120 0H392A120 120 0 0 1 512 120V392A120 120 0 0 1 392 512H120A120 120 0 0 1 0 392V120A120 120 0 0 1 120 0ZM135.04 119.36L289.6 119.36A29.12 29.12 0 0 1 310.19 169.07L186.99 292.27A29.12 29.12 0 0 1 145.81 251.09L219.3 177.6L135.04 177.6A29.12 29.12 0 0 1 135.04 119.36ZM376.96 392.64L222.4 392.64A29.12 29.12 0 0 1 201.81 342.93L325.01 219.73A29.12 29.12 0 0 1 366.19 260.91L292.7 334.4L376.96 334.4A29.12 29.12 0 0 1 376.96 392.64Z"/></svg>
+{%- endmacro %}

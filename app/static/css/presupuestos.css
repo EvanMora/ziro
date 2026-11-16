@@ -1,0 +1,407 @@
+/*
+ * Presupuestos: crear presupuesto y la pantalla del mes (calendario de gastos y barras por
+ * categoría). El estado, la pista y la barra del Resumen están en presupuesto-barra.css, que se
+ * carga antes que este. Solo usa variables de tokens.css.
+ * Colores de estado (docs/design-system.md): normal en tinta, alerta (80 %) en naranja y
+ * excedido (más del 100 %) en rojo. El rojo no se usa para nada más.
+ */
+
+/* ---------- Comunes de la sección ---------- */
+.pres-editar svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.pres-editar {
+  gap: var(--space-8);
+}
+
+.pres-chip {
+  padding: 3px 10px;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.pres-chip--alerta {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.pres-chip--excedido {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+.pres-aparte {
+  margin-top: var(--space-16);
+}
+
+.pres-vacio {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-12);
+  max-width: 560px;
+  margin: var(--space-24) auto 0;
+  padding: var(--space-48) var(--space-32);
+  text-align: center;
+}
+
+.pres-vacio .sub {
+  max-width: 40ch;
+  margin-bottom: var(--space-8);
+}
+
+.pres-vacio__icono {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+}
+
+.pres-vacio__icono svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- Crear presupuesto ---------- */
+.pres-form {
+  max-width: 760px;
+}
+
+.pres-form .card-head {
+  margin-bottom: var(--space-8);
+}
+
+.pres-form__ayuda {
+  margin-bottom: var(--space-20);
+}
+
+.pres-form .alert {
+  margin-bottom: var(--space-16);
+}
+
+.pres-form__lista > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-16);
+}
+
+.pres-form__lista label {
+  cursor: pointer;
+}
+
+.pres-form__lado {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.pres-form__usar {
+  padding: 4px 8px;
+  color: var(--color-link);
+  font: inherit;
+  font-size: var(--text-small);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-small);
+  cursor: pointer;
+}
+
+.pres-form__usar:hover {
+  text-decoration: underline;
+}
+
+.pres-form__usar:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.pres-form__campo {
+  display: flex;
+  align-items: center;
+  width: 190px;
+  padding: 0 16px;
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.pres-form__campo:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-text), var(--focus-ring);
+}
+
+.pres-form__campo:has([aria-invalid="true"]) {
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
+.pres-form__signo {
+  color: var(--color-text-secondary);
+}
+
+.pres-form__input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 0 10px 4px;
+  color: var(--color-text);
+  font: inherit;
+  text-align: right;
+  background: none;
+  border: 0;
+  outline: none;
+}
+
+.pres-form__error {
+  grid-column: 1 / -1;
+  justify-self: end;
+  margin-top: 4px;
+}
+
+.pres-form__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-16);
+  margin-top: var(--space-12);
+  padding-top: var(--space-20);
+  border-top: 1px solid var(--color-border);
+}
+
+.pres-form__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-12);
+  margin-top: var(--space-24);
+}
+
+/* ---------- Calendario y barras por categoría ---------- */
+.pres-cal__cuerpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(240px, 1fr);
+  gap: var(--space-24);
+  align-items: start;
+}
+
+.pres-cal__tabla {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 6px;
+  margin: -6px;
+  table-layout: fixed;
+}
+
+.pres-cal__tabla th {
+  padding-bottom: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+}
+
+.pres-cal__tabla td {
+  padding: 0;
+}
+
+.pres-dia {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 64px;
+  padding: 8px 9px;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  background: var(--color-surface);
+  border: 0;
+  border-radius: var(--radius-small);
+}
+
+.pres-dia__num {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+}
+
+.pres-dia__monto {
+  overflow: hidden;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Intensidad: cuanto más se gastó ese día, más oscuro. El día que más se gastó va en tinta. */
+.pres-dia--n1 { background: #ebebee; }
+.pres-dia--n2 { background: #dcdce1; }
+.pres-dia--n3 { background: #bdbdc4; }
+.pres-dia--n3 .pres-dia__num { color: var(--color-text); }
+.pres-dia--n4 { color: var(--color-surface); background: var(--color-text); }
+.pres-dia--n4 .pres-dia__num { color: rgba(255, 255, 255, 0.75); }
+
+.pres-dia.is-futuro {
+  opacity: 0.45;
+}
+
+.pres-dia.is-hoy {
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}
+
+.pres-dia.pres-dia--n4.is-hoy {
+  box-shadow: inset 0 0 0 2px var(--color-surface), 0 0 0 2px var(--color-text);
+}
+
+button.pres-dia {
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+button.pres-dia:hover {
+  transform: translateY(-1px);
+}
+
+button.pres-dia[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--color-canvas), 0 0 0 4px var(--color-text);
+}
+
+button.pres-dia:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.pres-detalle {
+  min-height: 100%;
+  padding: var(--space-20);
+  background: var(--color-surface);
+  border-radius: var(--radius-inner);
+}
+
+.pres-detalle .mid {
+  margin: 2px 0 var(--space-12);
+}
+
+.pres-detalle__lista > li {
+  padding: var(--space-8) 0;
+  font-size: var(--text-small);
+}
+
+.pres-cal__datos {
+  margin-top: var(--space-16);
+}
+
+.pres-cats {
+  margin-top: var(--gap-element);
+}
+
+.pres-total {
+  display: grid;
+  gap: var(--space-8);
+  margin-bottom: var(--space-24);
+  padding-bottom: var(--space-24);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pres-barra--alerta.pres-total strong { color: var(--color-warning); }
+.pres-barra--excedido.pres-total strong { color: var(--color-danger); }
+
+.pres-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-16);
+  margin: 0;
+}
+
+.pres-barras {
+  display: grid;
+  gap: var(--space-20);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pres-barras > li {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.pres-barras .pres-pista {
+  margin-left: 44px;
+}
+
+.pres-fila__cifras {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-16);
+  font-size: var(--text-small);
+}
+
+.pres-fila__pct {
+  min-width: 56px;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+/* ---------- Pantallas angostas ---------- */
+@media (max-width: 1000px) {
+  .pres-cal__cuerpo {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .pres-form__lista > li {
+    grid-template-columns: 1fr;
+    row-gap: var(--space-8);
+  }
+
+  .pres-form__lado {
+    justify-content: flex-end;
+  }
+
+  .pres-dia {
+    height: 52px;
+    padding: 6px;
+  }
+
+  /* No caben los montos: el tono del día dice cuánto se gastó y al tocarlo sale el detalle. */
+  .pres-dia__monto {
+    display: none;
+  }
+
+  .pres-editar {
+    padding: 8px;
+  }
+
+  .pres-editar__texto {
+    display: none;
+  }
+
+  .pres-barras .pres-pista {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.pres-dia {
+    transition: none;
+  }
+}
+
+/* El anillo de foco lo lleva la píldora (.pres-form__campo:focus-within), no el input. */
+.pres-form__input:focus,
+.pres-form__input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}

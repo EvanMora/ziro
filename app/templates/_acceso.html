@@ -1,0 +1,170 @@
+{#- Base del login y del registro: encabezado, hero, vista previa decorativa y pie. Cada página
+    pone la acción del encabezado, el título de la tarjeta, su formulario y su script. -#}
+{% extends "base.html" %}
+{% import "_logo.html" as logo %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ static('css/login.css') }}">
+{# Tras entrar se va a /resumen: adelanta los CSS que bloquean su render y que el login no carga. #}
+<link rel="prefetch" href="{{ static('css/app.css') }}" as="style">
+<link rel="prefetch" href="{{ static('css/resumen.css') }}" as="style">
+<link rel="prefetch" href="{{ static('css/presupuesto-barra.css') }}" as="style">
+{% endblock %}
+
+{% block body_class %}login-page{% endblock %}
+
+{% block body %}
+<header class="global-nav">
+  <div class="global-nav__inner">
+    <a class="wordmark" href="/login" aria-label="{{ app_name }}">
+      {{ logo.simbolo("wordmark__mark") }}
+      <span>{{ app_name }}</span>
+    </a>
+    <div class="global-nav__actions">
+{% block nav_accion %}{% endblock %}
+    </div>
+  </div>
+</header>
+
+<main id="contenido">
+  <section class="login-hero">
+    <p class="login-hero__kicker">{{ app_name }}</p>
+    <h1 class="login-hero__title">Tu dinero, en orden.</h1>
+    <p class="login-hero__lead">Registra lo que entra y lo que sale, ponte límites y llega a tus metas.</p>
+  </section>
+
+  <section class="login-stage" aria-label="Inicio de sesión" data-preview-stage>
+    {# Vista previa decorativa del dashboard: hace el papel de la foto de producto de la referencia. #}
+    <div class="preview" aria-hidden="true" inert>
+      {# Capa de fondo puramente decorativa (sin ejes ni etiquetas): la forma del ahorro mensual. #}
+      <div class="pv-savings">
+        <div class="pv-savings__plot">
+          {% for s in preview.savings %}
+          <div class="pv-savings__slot" style="--i: {{ loop.index0 }}">
+            <span class="pv-savings__col{% if s.current %} is-current{% endif %}" style="height: {{ s.height }}%"></span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="preview__column preview__column--left">
+        <div class="glass pv-card" style="--i: 0">
+          <p class="pv-label">Saldo total</p>
+          <p class="pv-balance" data-count-to="{{ preview.balance }}">{{ preview.balance_text }}</p>
+          <p class="pv-delta">
+            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 10V2M2.5 5.5L6 2l3.5 3.5"/></svg>
+            {{ preview.delta_text }} <span>vs. septiembre</span>
+          </p>
+          <svg class="pv-spark" viewBox="0 0 {{ preview.spark.width }} {{ preview.spark.height }}"
+               width="{{ preview.spark.width }}" height="{{ preview.spark.height }}">
+            <path class="pv-spark__area" d="{{ preview.spark.area }}"/>
+            <path class="pv-spark__line" d="{{ preview.spark.line }}" pathLength="1"/>
+            <circle class="pv-spark__dot" cx="{{ preview.spark.end[0] }}" cy="{{ preview.spark.end[1] }}" r="4"/>
+          </svg>
+          <div class="pv-split">
+            <div>
+              <p class="pv-label">Ingresos del mes</p>
+              <p class="pv-amount pv-amount--income num">{{ preview.income_text }}</p>
+            </div>
+            <div>
+              <p class="pv-label">Gastos del mes</p>
+              <p class="pv-amount num">{{ preview.expenses_text }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass pv-card" style="--i: 2">
+          <p class="pv-title">Gastos de octubre</p>
+          <ul class="pv-cats">
+            {% for c in preview.categories %}
+            <li style="--i: {{ loop.index0 }}">
+              <span>{{ c.name }}</span>
+              <span class="num">{{ c.amount }}</span>
+              <span class="pv-cats__bar{% if c.top %} is-top{% endif %}" style="width: {{ c.width }}%"></span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="preview__column preview__column--right">
+        <div class="glass pv-card" style="--i: 1">
+          <p class="pv-title">Presupuestos de octubre</p>
+          <ul class="pv-budgets">
+            {% for b in preview.budgets %}
+            <li class="is-{{ b.status }}" style="--i: {{ loop.index0 }}">
+              <div class="pv-row"><span>{{ b.name }}</span><span class="num">{{ b.pct }} %</span></div>
+              <div class="pv-track"><span class="pv-fill" style="width: {{ b.fill }}%"></span></div>
+              <p class="pv-note">
+                {% if b.status == "danger" %}
+                <svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5"/><path d="M6 3.2v3.3M6 8.6v.1"/></svg>
+                {% elif b.status == "warning" %}
+                <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5l5 9H1z"/><path d="M6 5v2.2M6 8.9v.1"/></svg>
+                {% endif %}
+                {{ b.note }}
+              </p>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div class="glass pv-card" style="--i: 3">
+          <p class="pv-title">Movimientos recientes</p>
+          <ul class="pv-moves">
+            {% for m in preview.movements %}
+            <li style="--i: {{ loop.index0 }}">
+              <span class="pv-moves__icon">
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  {% if m.icon == "income" %}<path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/>
+                  {% elif m.icon == "home" %}<path d="M2.5 7.5L8 3l5.5 4.5M4 6.5V13h8V6.5"/>
+                  {% elif m.icon == "cart" %}<path d="M2 3h2l1.5 7h7L14 5H5"/><circle cx="6.5" cy="13" r="1"/><circle cx="11.5" cy="13" r="1"/>
+                  {% else %}<rect x="3" y="2.5" width="10" height="9" rx="2"/><path d="M3 7.5h10M5 11.5v2M11 11.5v2"/>{% endif %}
+                </svg>
+              </span>
+              <span>{{ m.name }}</span>
+              <span class="num{% if m.income %} pv-amount--income{% endif %}">{{ m.amount }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="login-card" data-login-card>
+      <div class="login-card__head">
+        <span class="login-card__mark" aria-hidden="true">
+          {# La Z de Ziro (ver _logo.html) trazada como dos líneas para dibujarla: primero lo que sale, luego lo que entra. #}
+          <svg viewBox="0 0 512 512">
+            <path class="login-card__mark-line" d="M135.04 148.48H289.6L166.4 271.68" pathLength="1"/>
+            <path class="login-card__mark-line login-card__mark-line--entra" d="M376.96 363.52H222.4L345.6 240.32" pathLength="1"/>
+          </svg>
+        </span>
+        <p class="login-card__greeting" data-greeting>
+          <svg class="login-card__greeting-icon" viewBox="0 0 16 16" aria-hidden="true" data-greeting-icon>
+            <circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/>
+          </svg>
+          <span data-greeting-text>{% block saludo %}Hola de nuevo{% endblock %}</span>
+        </p>
+        <h2 class="login-card__title">{% block tarjeta_titulo %}{% endblock %}</h2>
+        <p class="login-card__lead">{% block tarjeta_lead %}{% endblock %}</p>
+      </div>
+
+{% block formulario %}{% endblock %}
+
+{% block tarjeta_pie %}{% endblock %}
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="login-footer">
+  <p>© {{ year }} {{ app_name }}</p>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ static('js/acceso-form.js') }}" defer></script>
+{% block script_formulario %}{% endblock %}
+<script src="{{ static('js/login-preview.js') }}" defer></script>
+<script src="{{ static('js/login-card.js') }}" defer></script>
+{% endblock %}

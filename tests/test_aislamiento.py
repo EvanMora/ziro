@@ -149,3 +149,17 @@ def test_eliminar_categoria_con_presupuesto(datos_de_a):
     hoy = date.today()
     presupuesto = a.get(f"/api/v1/presupuestos/{hoy.year}/{hoy.month}").json()
     assert all(f["categoria"]["id"] != d["categoria"] for f in presupuesto["categorias"])
+
+
+def test_b_no_reordena_los_otros_de_a(datos_de_a):
+    a, d = datos_de_a["cliente"], datos_de_a
+    otros = a.post("/api/v1/movimientos", json={
+        "tipo": "gasto", "monto": "9000.00", "categoria_id": 7, "cuenta_id": d["cuenta"], "fecha": HOY,
+        "descripcion": "Peluquería"}).json()["id"]
+    b = _registrado("b@x.com")
+
+    r = b.post("/api/v1/ia/ordenar-otros/aplicar", json={"movimientos": [otros], "categoria_id": MERCADO})
+    assert r.status_code == 422
+    hoy = date.today()
+    movs = a.get(f"/api/v1/movimientos?anio={hoy.year}&mes={hoy.month}").json()["movimientos"]
+    assert next(m for m in movs if m["id"] == otros)["categoria"]["id"] == 7

@@ -23,6 +23,7 @@ ENDPOINTS = [
     ("POST", "/api/v1/ia/interpretar-movimiento"), ("GET", "/api/v1/ia/analisis-mes"),
     ("GET", "/api/v1/metas"), ("POST", "/api/v1/metas"), ("PUT", "/api/v1/metas/1"), ("DELETE", "/api/v1/metas/1"),
     ("POST", "/api/v1/metas/1/aportes"), ("DELETE", "/api/v1/metas/1/aportes/1"),
+    ("GET", "/api/v1/ia/ordenar-otros"), ("POST", "/api/v1/ia/ordenar-otros/aplicar"),
 ]
 
 

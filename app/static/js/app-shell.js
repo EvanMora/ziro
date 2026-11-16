@@ -85,7 +85,7 @@
 /*
  * Aviso tras guardar o eliminar (el "toast" de abajo). Quien guarda navega con ?aviso=<clave> en
  * la URL (movimiento-dialogo.js, cuentas.js, categorias.js, pago-dialogo.js,
- * presupuesto-nuevo.js); aquí se muestra el texto de esa clave y se quita de la URL para que
+ * presupuesto-nuevo.js, ordenar-otros.js); aquí se muestra el texto de esa clave y se quita de la URL para que
  * recargar o volver con Atrás no lo repita. Por la URL y no por sessionStorage: leer
  * sessionStorage en cada carga es una llamada síncrona al navegador (~2 ms). Solo se aceptan las
  * claves conocidas, así un enlace no puede mostrar un texto cualquiera.
@@ -110,6 +110,7 @@
     "aporte-guardado": "Aporte guardado",
     "retiro-guardado": "Retiro guardado",
     "aporte-eliminado": "Aporte borrado",
+    "otros-ordenados": "Movimientos ordenados",
   };
 
   const url = new URL(location.href);

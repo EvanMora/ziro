@@ -16,7 +16,7 @@ from app.api import ia as api_ia
 from app.api import movimientos as api_movimientos
 from app.api import presupuestos as api_presupuestos
 from app.web import views
-from app.web.sesion import DURACION_RECORDAR, SinSesion
+from app.web.sesion import DURACION_RECORDAR, SinSesion, usuario_opcional
 
 # Variables del archivo .env (p. ej. GEMINI_API_KEY). Las que ya existan en el entorno no se pisan.
 load_dotenv()
@@ -82,6 +82,6 @@ app.include_router(api_auth.router)
 
 
 @app.get("/", include_in_schema=False)
-def inicio():
-    """La raíz lleva al Resumen. TODO(backend): con el login real, a /login si no hay sesión."""
-    return RedirectResponse("/resumen")
+def inicio(request: Request):
+    """La raíz lleva al Resumen con sesión y al login sin ella."""
+    return RedirectResponse("/resumen" if usuario_opcional(request) else "/login", status_code=303)

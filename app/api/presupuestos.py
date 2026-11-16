@@ -4,14 +4,15 @@ campo "monto_<categoria_id>".
 """
 from typing import Any
 
-from fastapi import APIRouter, Body, Path
+from fastapi import APIRouter, Body, Depends, Path
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from app.schemas.presupuestos import PresupuestoDelMes, PresupuestoEntrada
+from app.schemas.auth import UsuarioSesion
 from app.services import presupuestos as servicio
 from app.services.comun import ErrorValidacion
-from app.web.sesion import USUARIO_DEMO
+from app.web.sesion import usuario_actual
 
 router = APIRouter(prefix="/api/v1/presupuestos", tags=["presupuestos"])
 
@@ -21,12 +22,14 @@ def _errores(errores: dict[str, str]) -> JSONResponse:
 
 
 @router.get("/{anio}/{mes}", response_model=PresupuestoDelMes)
-def obtener(anio: int = Path(ge=2000, le=2100), mes: int = Path(ge=1, le=12)):
-    return servicio.del_mes(USUARIO_DEMO["id"], anio, mes)
+def obtener(anio: int = Path(ge=2000, le=2100), mes: int = Path(ge=1, le=12),
+            usuario: UsuarioSesion = Depends(usuario_actual)):
+    return servicio.del_mes(usuario.id, anio, mes)
 
 
 @router.put("/{anio}/{mes}", response_model=PresupuestoDelMes)
-def guardar(anio: int = Path(ge=2000, le=2100), mes: int = Path(ge=1, le=12), cuerpo: Any = Body(None)):
+def guardar(anio: int = Path(ge=2000, le=2100), mes: int = Path(ge=1, le=12), cuerpo: Any = Body(None),
+            usuario: UsuarioSesion = Depends(usuario_actual)):
     if not isinstance(cuerpo, dict):
         return _errores({"general": "Los datos no tienen el formato esperado."})
     try:
@@ -45,6 +48,6 @@ def guardar(anio: int = Path(ge=2000, le=2100), mes: int = Path(ge=1, le=12), cu
             errores.setdefault("general", "Los datos no tienen el formato esperado.")
         return _errores(errores)
     try:
-        return servicio.guardar(USUARIO_DEMO["id"], anio, mes, entrada)
+        return servicio.guardar(usuario.id, anio, mes, entrada)
     except ErrorValidacion as error:
         return _errores(error.errores)

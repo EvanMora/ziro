@@ -43,6 +43,6 @@ def test_usuario_nuevo_tiene_las_categorias_predeterminadas(usuario_id):
 
 
 def test_la_app_no_habla_de_demo():
-    r = subprocess.run(["grep", "-rnE", "DEMO_USUARIO_ID|_sembrar_demo|ref_plantilla|_EJEMPLO", str(APP)],
+    r = subprocess.run(["grep", "-rnE", "DEMO_USUARIO_ID|USUARIO_DEMO|_sembrar_demo|ref_plantilla|_EJEMPLO", str(APP)],
                        capture_output=True, text=True)
     assert r.stdout == ""

@@ -16,9 +16,6 @@ from app.services import usuarios
 DURACION_RECORDAR = timedelta(days=30)
 DURACION_NORMAL = timedelta(hours=12)
 
-# TODO(Tarea 4): se elimina cuando todas las rutas usen usuario_actual.
-USUARIO_DEMO = {"id": 1, "nombre": "Evan Pro", "correo": "evanpro@correo.com", "iniciales": "EP"}
-
 
 class SinSesion(Exception):
     """No hay una sesión válida: falta, venció, está mal formada o el usuario ya no existe."""

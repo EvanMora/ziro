@@ -7,6 +7,8 @@ os.environ.setdefault("SECRET_KEY", "clave-de-pruebas-" + "x" * 32)
 import pytest  # noqa: E402
 
 from app.services import categorias, cuentas, database, ia, limites, movimientos, presupuestos
+from app.main import app
+from app.web.sesion import usuario_actual
 from tests import plantilla
 
 
@@ -48,7 +50,10 @@ def _usuario_de_prueba(request, monkeypatch, _base_de_datos_de_usuarios_en_memor
         return
     plantilla.crear_usuario()
     plantilla.instalar(monkeypatch)
+    # La sesión simulada: las páginas y la API ven al usuario de prueba sin pasar por el login.
+    app.dependency_overrides[usuario_actual] = lambda: plantilla.USUARIO_PRUEBA
     yield
+    app.dependency_overrides.pop(usuario_actual, None)
 
 
 @pytest.fixture(autouse=True)

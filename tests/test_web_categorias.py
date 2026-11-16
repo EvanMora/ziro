@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.schemas.categorias import CategoriaEntrada
 from app.services import categorias, movimientos
-from app.web.sesion import USUARIO_DEMO
+from tests.plantilla import USUARIO_PRUEBA_ID
 
 client = TestClient(app)
 
@@ -35,7 +35,7 @@ def test_solo_las_propias_tienen_lapiz():
     html = client.get("/categorias?anio=2026&mes=10").text
     assert "data-editar-categoria" not in html
 
-    creada = categorias.crear(USUARIO_DEMO["id"], CategoriaEntrada(nombre="Mascotas", tipo="gasto"))
+    creada = categorias.crear(USUARIO_PRUEBA_ID, CategoriaEntrada(nombre="Mascotas", tipo="gasto"))
     html = client.get("/categorias?anio=2026&mes=10").text
 
     assert html.count("data-editar-categoria") == 1
@@ -44,7 +44,7 @@ def test_solo_las_propias_tienen_lapiz():
 
 
 def test_la_categoria_nueva_aparece_en_los_diálogos():
-    categorias.crear(USUARIO_DEMO["id"], CategoriaEntrada(nombre="Mascotas", tipo="gasto"))
+    categorias.crear(USUARIO_PRUEBA_ID, CategoriaEntrada(nombre="Mascotas", tipo="gasto"))
 
     html = client.get("/movimientos?anio=2026&mes=10").text
 
@@ -52,7 +52,7 @@ def test_la_categoria_nueva_aparece_en_los_diálogos():
 
 
 def test_nombre_con_html_se_escapa():
-    categorias.crear(USUARIO_DEMO["id"], CategoriaEntrada(nombre="<b>x</b>'", tipo="gasto"))
+    categorias.crear(USUARIO_PRUEBA_ID, CategoriaEntrada(nombre="<b>x</b>'", tipo="gasto"))
 
     html = client.get("/categorias?anio=2026&mes=10").text
 

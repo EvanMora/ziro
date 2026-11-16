@@ -18,6 +18,7 @@ import sys
 from typing import Any
 
 from sqlalchemy import Engine, StaticPool, create_engine, event, func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import es_produccion
@@ -100,20 +101,47 @@ def obtener_motor_y_sesion(ruta: Any = None) -> tuple[Engine, sessionmaker[Sessi
     return _motores[url]
 
 
+def _hay_predeterminadas(db: Session) -> bool:
+    return bool(db.execute(
+        select(func.count(CategoriaDB.id)).where(CategoriaDB.usuario_id.is_(None))
+    ).scalar_one())
+
+
 def _sembrar_predeterminadas(db: Session) -> None:
     """Inserta las 7 categorías predeterminadas (ids 1-7) si la tabla no tiene ninguna.
 
     Es la siembra básica del sistema: sin ellas la app no puede registrar movimientos. Solo se
-    siembra si no hay ninguna predeterminada, así los reinicios de tests no duplican."""
-    hay = db.execute(
-        select(func.count(CategoriaDB.id)).where(CategoriaDB.usuario_id.is_(None))
-    ).scalar_one()
-    if hay:
+    siembra si no hay ninguna predeterminada, así los reinicios de tests no duplican.
+
+    Si dos instancias arrancan a la vez, las dos ven la tabla vacía e insertan: la segunda choca con
+    la clave primaria. No es un error (la otra ya sembró), así que se deshace y se sigue."""
+    if _hay_predeterminadas(db):
         return
     db.add_all([
         CategoriaDB(id=id_, nombre=nombre, tipo=tipo, usuario_id=None)
         for id_, nombre, tipo in PREDETERMINADAS
     ])
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        return
+    ajustar_secuencias(db)
+
+
+def ajustar_secuencias(db: Session) -> None:
+    """Deja la secuencia del id de cada tabla después de su mayor id. Solo hace falta en Postgres,
+    donde insertar una fila con id fijo (las categorías predeterminadas) no avanza la secuencia: sin
+    esto, la siguiente fila intentaría usar un id que ya existe. En SQLite no hace nada."""
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    from app.models import Base
+    for tabla in Base.metadata.sorted_tables:
+        if "id" in tabla.columns:
+            db.execute(text(
+                f"SELECT setval(pg_get_serial_sequence('{tabla.name}', 'id'), "
+                f"COALESCE((SELECT MAX(id) FROM {tabla.name}), 0) + 1, false)"
+            ))
 
 
 def obtener_motor(ruta: Any = None) -> Engine:
@@ -155,22 +183,26 @@ def obtener_db() -> Generator[Session, None, None]:
 
 
 def reiniciar() -> None:
-    """Vacía todas las tablas, reinicia las secuencias autoincrement y vuelve a sembrar las
-    categorías predeterminadas. Para tests."""
+    """Vacía todas las tablas, reinicia los contadores de ids y vuelve a sembrar las categorías
+    predeterminadas. Para tests. Las tablas salen de los modelos (Base.metadata): una tabla nueva
+    queda cubierta sin tocar esta función."""
     motor, fabrica = obtener_motor_y_sesion()
     from app.models import Base
 
     Base.metadata.create_all(bind=motor)
-    tablas = ("aportes_meta", "metas", "movimientos", "pagos_tarjeta", "presupuestos", "cuentas", "categorias",
-              "usuarios")
+    tablas = [tabla.name for tabla in Base.metadata.sorted_tables]
     with fabrica() as db:
-        for tabla in tablas:
-            db.execute(text(f"DELETE FROM {tabla}"))
-        for tabla in tablas:
-            try:
-                db.execute(text(f"DELETE FROM sqlite_sequence WHERE name='{tabla}'"))
-            except Exception:
-                # sqlite_sequence solo existe si ya hubo autoincrement
-                pass
+        if motor.dialect.name == "postgresql":
+            db.execute(text(f"TRUNCATE {', '.join(tablas)} RESTART IDENTITY CASCADE"))
+        else:
+            # De las que dependen de otras hacia las demás, por las claves foráneas.
+            for tabla in reversed(tablas):
+                db.execute(text(f"DELETE FROM {tabla}"))
+            for tabla in tablas:
+                try:
+                    db.execute(text(f"DELETE FROM sqlite_sequence WHERE name='{tabla}'"))
+                except Exception:
+                    # sqlite_sequence solo existe si ya hubo autoincrement
+                    pass
         _sembrar_predeterminadas(db)
         db.commit()

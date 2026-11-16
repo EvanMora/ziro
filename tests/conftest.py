@@ -6,7 +6,10 @@ os.environ.setdefault("SECRET_KEY", "clave-de-pruebas-" + "x" * 32)
 # La base de los tests es siempre una en memoria, elegida ANTES de importar la app: si se eligiera en
 # un fixture, los fixtures que corren antes (p. ej. el que vacía los movimientos) borrarían la base
 # real data/usuarios.sqlite. Pisa cualquier DATABASE_PATH del entorno o del .env.
-os.environ["DATABASE_PATH"] = "sqlite:///:memory:"
+# Para correr la suite contra un Postgres real (uno DE PRUEBAS: cada test vacía todas las tablas),
+# se pasa su URL en ZIRO_TEST_DATABASE_URL.
+URL_TESTS = os.environ.get("ZIRO_TEST_DATABASE_URL", "sqlite:///:memory:")
+os.environ["DATABASE_PATH"] = URL_TESTS
 # DATABASE_URL tiene prioridad sobre DATABASE_PATH y en modo producción es obligatoria: también
 # apunta a la base de los tests. Así el load_dotenv() de app/main.py no trae la del .env, y los
 # tests que simulan producción (ENVIRONMENT=production o VERCEL) siguen usando esta base.
@@ -42,8 +45,9 @@ def _almacen_de_movimientos_limpio():
 
 @pytest.fixture(autouse=True)
 def _base_de_datos_de_usuarios_en_memoria(monkeypatch):
-    """Cada test arranca la base de datos de usuarios en memoria (SQLite) y sin usuarios guardados."""
-    monkeypatch.setattr(database, "DATABASE_PATH", "sqlite:///:memory:")
+    """Cada test arranca con la base de los tests (SQLite en memoria, salvo ZIRO_TEST_DATABASE_URL)
+    vacía y sin usuarios guardados."""
+    monkeypatch.setattr(database, "DATABASE_PATH", URL_TESTS)
     database.reiniciar()
     yield
     database.reiniciar()

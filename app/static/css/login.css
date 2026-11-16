@@ -1011,3 +1011,13 @@
   }
 }
 
+
+/* Pista neutra bajo un campo del registro («Mínimo 8 caracteres.»). Mientras el campo muestra su
+ * error, la pista se oculta para no repetir lo mismo. */
+.field__message--info {
+  color: var(--color-text-secondary);
+}
+
+.field__message--error:not([hidden]) ~ .field__message--info {
+  display: none;
+}

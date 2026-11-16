@@ -9,6 +9,7 @@ from app.schemas.cuentas import CuentaEntrada
 from app.schemas.movimientos import MovimientoEntrada
 from app.services import cuentas, movimientos
 from app.services.comun import ErrorValidacion, NoEncontrado
+from tests import plantilla
 
 U = 1
 
@@ -235,6 +236,7 @@ def test_tarjetas_por_fecha_limite():
 
 
 def test_cuentas_por_usuario():
+    plantilla.crear_usuario(2, "otra@correo.com", "Otra Persona")
     p = cuentas.panel(2)
 
     assert (p.dinero, p.tarjetas, p.tienes) == ([], [], Decimal(0))

@@ -7,14 +7,15 @@ movimientos, los errores de validación llegan como {"errores": {campo: mensaje}
 import re
 from typing import Any
 
-from fastapi import APIRouter, Body, Response
+from fastapi import APIRouter, Body, Depends, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from app.schemas.categorias import Categoria, CategoriaEntrada
+from app.schemas.auth import UsuarioSesion
 from app.services import categorias as servicio
 from app.services.comun import ErrorValidacion, NoEncontrado, NoPermitido
-from app.web.sesion import USUARIO_DEMO
+from app.web.sesion import usuario_actual
 
 router = APIRouter(prefix="/api/v1/categorias", tags=["categorias"])
 
@@ -46,33 +47,29 @@ def _entrada(cuerpo: Any) -> CategoriaEntrada | JSONResponse:
         return _errores(errores)
 
 
-def _usuario() -> int:
-    return USUARIO_DEMO["id"]
-
-
 @router.get("", response_model=list[Categoria])
-def listar():
-    return servicio.listar(_usuario())
+def listar(usuario: UsuarioSesion = Depends(usuario_actual)):
+    return servicio.listar(usuario.id)
 
 
 @router.post("", response_model=Categoria, status_code=201)
-def crear(cuerpo: Any = Body(None)):
+def crear(cuerpo: Any = Body(None), usuario: UsuarioSesion = Depends(usuario_actual)):
     entrada = _entrada(cuerpo)
     if isinstance(entrada, JSONResponse):
         return entrada
     try:
-        return servicio.crear(_usuario(), entrada)
+        return servicio.crear(usuario.id, entrada)
     except ErrorValidacion as error:
         return _errores(error.errores)
 
 
 @router.put("/{id}", response_model=Categoria)
-def actualizar(id: int, cuerpo: Any = Body(None)):
+def actualizar(id: int, cuerpo: Any = Body(None), usuario: UsuarioSesion = Depends(usuario_actual)):
     entrada = _entrada(cuerpo)
     if isinstance(entrada, JSONResponse):
         return entrada
     try:
-        return servicio.actualizar(_usuario(), id, entrada)
+        return servicio.actualizar(usuario.id, id, entrada)
     except NoEncontrado:
         return _no_existe()
     except NoPermitido:
@@ -82,7 +79,7 @@ def actualizar(id: int, cuerpo: Any = Body(None)):
 
 
 @router.delete("/{id}", status_code=204)
-def eliminar(id: int, mover_a: str | None = None):
+def eliminar(id: int, mover_a: str | None = None, usuario: UsuarioSesion = Depends(usuario_actual)):
     # mover_a llega como texto para responder con el mensaje del campo, no con el 422 de FastAPI.
     destino = None
     if mover_a:
@@ -90,7 +87,7 @@ def eliminar(id: int, mover_a: str | None = None):
             return _errores({"mover_a": "Elige otra categoría."})
         destino = int(mover_a)
     try:
-        servicio.eliminar(_usuario(), id, destino)
+        servicio.eliminar(usuario.id, id, destino)
     except NoEncontrado:
         return _no_existe()
     except NoPermitido:

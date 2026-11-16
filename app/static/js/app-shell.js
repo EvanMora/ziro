@@ -3,7 +3,36 @@
  * - Escritorio: contraer / expandir. El estado se guarda en una cookie para que el servidor
  *   pinte la barra ya contraída en la siguiente página (con localStorage parpadearía).
  * - Celular: abre y cierra el cajón con el botón de menú, tocando fuera o con Esc.
+ * - Si la sesión vence con la página abierta, la API responde 401: en vez de mostrar un error en el
+ *   diálogo, se lleva a la persona al login.
  */
+(() => {
+  const fetchOriginal = window.fetch.bind(window);
+  window.fetch = async (recurso, opciones) => {
+    const respuesta = await fetchOriginal(recurso, opciones);
+    const url = new URL(recurso instanceof Request ? recurso.url : String(recurso), location.href);
+    if (respuesta.status === 401 && url.origin === location.origin && url.pathname.startsWith("/api/")) {
+      window.location.assign("/login");
+    }
+    return respuesta;
+  };
+})();
+
+// Cerrar sesión: borra la sesión en el servidor y vuelve al login (también si falla la red: el login
+// con una sesión aún abierta lleva de nuevo al Resumen, así que nada se pierde).
+(() => {
+  const boton = document.querySelector("[data-logout]");
+  if (!boton) return;
+  boton.addEventListener("click", async () => {
+    boton.disabled = true;
+    try {
+      await fetch("/api/v1/auth/logout", { method: "POST", credentials: "same-origin" });
+    } finally {
+      window.location.assign("/login");
+    }
+  });
+})();
+
 (() => {
   const shell = document.querySelector("[data-shell]");
   if (!shell) return;

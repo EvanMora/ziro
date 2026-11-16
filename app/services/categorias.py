@@ -158,6 +158,7 @@ def actualizar(usuario_id: int, id: int, entrada: CategoriaEntrada) -> Categoria
 def eliminar(usuario_id: int, id: int, mover_a: int | None = None) -> None:
     """Si la categoría tiene movimientos, mover_a es la categoría (del mismo tipo) que los recibe."""
     from app.models.movimientos import MovimientoDB
+    from app.models.presupuestos import PresupuestoDB
     categoria = _propia(usuario_id, id)
     usos = _usos(usuario_id, id)
     if usos:
@@ -169,22 +170,21 @@ def eliminar(usuario_id: int, id: int, mover_a: int | None = None) -> None:
             raise ErrorValidacion({"mover_a": "Elige otra categoría."})
         if destino.tipo != categoria.tipo:
             raise ErrorValidacion({"mover_a": f"Elige una categoría de {_nombre_de_tipo(categoria.tipo)}."})
-        # Reasignar y borrar en la misma transacción: no se pierde ningún movimiento.
-        with database.sesion() as db:
+    # En una sola transacción: los movimientos pasan a la otra categoría (no se pierde ninguno), los
+    # presupuestos de la categoría se borran (sin ella no se muestran) y luego se borra la categoría.
+    with database.sesion() as db:
+        if usos:
             db.execute(
                 update(MovimientoDB)
-                .where(MovimientoDB.categoria_id == id,
-                       MovimientoDB.usuario_id == usuario_id)
+                .where(MovimientoDB.categoria_id == id, MovimientoDB.usuario_id == usuario_id)
                 .values(categoria_id=mover_a)
             )
-            db.execute(
-                delete(CategoriaDB).where(CategoriaDB.id == id, CategoriaDB.usuario_id == usuario_id)
-            )
-    else:
-        with database.sesion() as db:
-            db.execute(
-                delete(CategoriaDB).where(CategoriaDB.id == id, CategoriaDB.usuario_id == usuario_id)
-            )
+        db.execute(
+            delete(PresupuestoDB).where(PresupuestoDB.categoria_id == id, PresupuestoDB.usuario_id == usuario_id)
+        )
+        db.execute(
+            delete(CategoriaDB).where(CategoriaDB.id == id, CategoriaDB.usuario_id == usuario_id)
+        )
 
 
 def del_mes(usuario_id: int, anio: int, mes: int) -> CategoriasDelMes:

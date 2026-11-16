@@ -5,16 +5,12 @@ Fase 2.
 Los límites viven en la tabla `presupuestos` (app/models/presupuestos.py): una fila por
 usuario, mes y categoría de gasto, con unicidad uq_presupuesto_mes. Crear o reemplazar el
 presupuesto de un mes es un DELETE del mes y un INSERT de los nuevos, en una sola transacción.
-
-El ejemplo de la demo (el mes anterior al actual, con una categoría en alerta y otra excedida
-frente a la plantilla de movimientos) se siembra solo para el usuario demo, solo si ese mes aún
-no tiene ningún presupuesto.
 """
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 
 from app.models.presupuestos import PresupuestoDB
 from app.schemas.movimientos import ListaMovimientos
@@ -26,53 +22,17 @@ from app.schemas.presupuestos import (
     PresupuestoEntrada,
 )
 from app.services import categorias, database, movimientos
-from app.services.comun import DEMO_USUARIO_ID, ErrorValidacion
+from app.services.comun import ErrorValidacion
 
 MAX_MONTO = movimientos.MAX_MONTO
 
-_EJEMPLO = {"Arriendo": "1100000", "Mercado": "450000", "Transporte": "300000", "Ocio": "150000"}
-
-
 def reiniciar() -> None:
-    """Vacía la tabla (y vuelve a sembrar predeterminadas). Solo para tests."""
+    """Vacía la base (y vuelve a sembrar las categorías predeterminadas). Solo para tests."""
     database.reiniciar()
 
 
 def _mes_anterior(d: date) -> tuple[int, int]:
     return (d.year - 1, 12) if d.month == 1 else (d.year, d.month - 1)
-
-
-def _sembrar(usuario_id: int, anio: int, mes: int) -> None:
-    """El ejemplo del mes anterior para la demo, solo si ese mes aún no tiene presupuesto."""
-    if usuario_id != DEMO_USUARIO_ID:
-        return
-    # COUNT primero: si el mes ya tiene presupuesto no se siembra nada (y no hace falta el hoy).
-    with database.sesion() as db:
-        cuantos = db.execute(
-            select(func.count(PresupuestoDB.id)).where(
-                PresupuestoDB.usuario_id == usuario_id,
-                PresupuestoDB.anio == anio, PresupuestoDB.mes == mes,
-            )
-        ).scalar_one()
-        if cuantos:
-            return
-    if (anio, mes) != _mes_anterior(movimientos.hoy()):
-        return
-    ejemplo = [(categorias.predeterminada(nombre).id, Decimal(monto))
-               for nombre, monto in _EJEMPLO.items()]
-    with database.sesion() as db:
-        # Re-chequeo dentro de la transacción: dos peticiones a la vez no siembran dos veces.
-        cuantos = db.execute(
-            select(func.count(PresupuestoDB.id)).where(
-                PresupuestoDB.usuario_id == usuario_id,
-                PresupuestoDB.anio == anio, PresupuestoDB.mes == mes,
-            )
-        ).scalar_one()
-        if cuantos:
-            return
-        for categoria_id, monto in ejemplo:
-            db.add(PresupuestoDB(usuario_id=usuario_id, categoria_id=categoria_id,
-                                 anio=anio, mes=mes, monto_limite=monto))
 
 
 def _estado(pct: float) -> Estado:
@@ -119,7 +79,6 @@ def del_mes(usuario_id: int, anio: int, mes: int, gastos: list | None = None,
             lista_categorias: list | None = None) -> PresupuestoDelMes:
     """gastos (gastos_del_mes) y lista_categorias (categorias.listar): si la ruta ya los leyó, para
     no listar el mes ni leer las categorías dos veces en la misma petición."""
-    _sembrar(usuario_id, anio, mes)
     limites = _limites(usuario_id, anio, mes)
     gastos = gastos_del_mes(usuario_id, anio, mes) if gastos is None else gastos
 

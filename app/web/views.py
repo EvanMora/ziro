@@ -5,10 +5,11 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from app.schemas.auth import UsuarioSesion
 from app.schemas.movimientos import FiltrosMovimientos
 from app.services import categorias as categorias_servicio
 from app.services import cuentas as cuentas_servicio
@@ -25,7 +26,7 @@ from app.web.presentacion import (
     vista_resumen,
 )
 from app.web.preview import build_preview
-from app.web.sesion import USUARIO_DEMO
+from app.web.sesion import usuario_actual, usuario_opcional
 
 APP_DIR = Path(__file__).resolve().parent.parent
 
@@ -75,11 +76,11 @@ def _grupos_cuentas(lista: list) -> list[tuple[str, list]]:
     return [(nombre, refs) for nombre, refs in grupos if refs]
 
 
-def _contexto_app(request: Request, seccion: str, *, hoy: date | None = None, cuentas: list | None = None,
-                  categorias: list | None = None) -> dict:
+def _contexto_app(request: Request, sesion: UsuarioSesion, seccion: str, *, hoy: date | None = None,
+                  cuentas: list | None = None, categorias: list | None = None) -> dict:
     """Lo común a todas las secciones. hoy, cuentas (cuentas.listar) y categorias (categorias.listar):
     si la ruta ya los leyó, para no leerlos otra vez en la misma petición."""
-    usuario = USUARIO_DEMO["id"]
+    usuario = sesion.id
     cuentas = cuentas_servicio.listar(usuario) if cuentas is None else cuentas
     categorias = categorias_servicio.listar(usuario) if categorias is None else categorias
     hoy = hoy or movimientos_servicio.hoy()
@@ -87,7 +88,7 @@ def _contexto_app(request: Request, seccion: str, *, hoy: date | None = None, cu
         "seccion": seccion,
         "secciones": SECCIONES,
         "proximamente": PROXIMAMENTE,
-        "usuario": USUARIO_DEMO,
+        "usuario": sesion,
         "barra_contraida": request.cookies.get(COOKIE_BARRA) == "1",
         # Para el diálogo "Nuevo movimiento", que está en todas las secciones.
         "grupos_cuentas": _grupos_cuentas(cuentas),
@@ -128,10 +129,22 @@ def _navegacion_mes(anio: int, mes: int, hoy: date | None = None) -> dict:
     }
 
 
+def _pagina_de_acceso(request: Request, plantilla: str):
+    """El login y el registro: con sesión abierta no hacen falta y llevan al Resumen."""
+    if usuario_opcional(request) is not None:
+        return RedirectResponse("/resumen", status_code=303)
+    context = {"year": date.today().year, "preview": build_preview()}
+    return templates.TemplateResponse(request, plantilla, context)
+
+
 @router.get("/login", response_class=HTMLResponse)
 def login(request: Request):
-    context = {"year": date.today().year, "preview": build_preview()}
-    return templates.TemplateResponse(request, "login.html", context)
+    return _pagina_de_acceso(request, "login.html")
+
+
+@router.get("/registro", response_class=HTMLResponse)
+def registro(request: Request):
+    return _pagina_de_acceso(request, "registro.html")
 
 
 @router.get("/resumen", response_class=HTMLResponse)
@@ -139,10 +152,11 @@ def resumen(
     request: Request,
     anio: str | None = None,
     mes: str | None = None,
+    sesion: UsuarioSesion = Depends(usuario_actual),
 ):
     # Lo que usan varias partes de la página se lee una sola vez: la fecha, las cuentas, las
     # categorías y los movimientos del mes (los usan el Resumen y el presupuesto).
-    usuario = USUARIO_DEMO["id"]
+    usuario = sesion.id
     hoy = movimientos_servicio.hoy()
     anio, mes = _mes_de_url(anio, mes, hoy)
     cuentas = cuentas_servicio.listar(usuario)
@@ -152,7 +166,7 @@ def resumen(
     presupuesto = presupuestos_servicio.del_mes(
         usuario, anio, mes, gastos=presupuestos_servicio.gastos_del_mes(usuario, anio, mes, lista=lista),
         lista_categorias=categorias)
-    context = _contexto_app(request, "resumen", hoy=hoy, cuentas=cuentas, categorias=categorias) | {
+    context = _contexto_app(request, sesion, "resumen", hoy=hoy, cuentas=cuentas, categorias=categorias) | {
         "resumen": datos,
         "vista": vista_resumen(datos),
         "periodo": _navegacion_mes(anio, mes, hoy),
@@ -174,8 +188,9 @@ def _id_valido(valor: str | None, validos: set[int]) -> int | None:
     return numero if numero in validos else None
 
 
-def _filtros(tipo: str | None, cuenta: str | None, categoria: str | None, q: str | None) -> FiltrosMovimientos:
-    cuentas, categorias = movimientos_servicio.catalogo(USUARIO_DEMO["id"])
+def _filtros(usuario_id: int, tipo: str | None, cuenta: str | None, categoria: str | None,
+             q: str | None) -> FiltrosMovimientos:
+    cuentas, categorias = movimientos_servicio.catalogo(usuario_id)
     texto = (q or "").strip()[:80]
     return FiltrosMovimientos(
         tipo=tipo if tipo in ("ingreso", "gasto") else None,
@@ -202,16 +217,17 @@ def movimientos(
     q: str | None = None,
     nuevo: str | None = None,
     guardado: str | None = None,
+    sesion: UsuarioSesion = Depends(usuario_actual),
 ):
     anio, mes = _mes_de_url(anio, mes)
-    filtros = _filtros(tipo, cuenta, categoria, q)
-    lista = movimientos_servicio.listar(USUARIO_DEMO["id"], anio, mes, filtros)
-    pagos = cuentas_servicio.pagos_del_mes(USUARIO_DEMO["id"], anio, mes, filtros)
-    _, categorias = movimientos_servicio.catalogo(USUARIO_DEMO["id"])
-    context = _contexto_app(request, "movimientos") | {
+    filtros = _filtros(sesion.id, tipo, cuenta, categoria, q)
+    lista = movimientos_servicio.listar(sesion.id, anio, mes, filtros)
+    pagos = cuentas_servicio.pagos_del_mes(sesion.id, anio, mes, filtros)
+    _, categorias = movimientos_servicio.catalogo(sesion.id)
+    context = _contexto_app(request, sesion, "movimientos") | {
         "lista": lista,
         "vista": vista_movimientos(lista, pagos),
-        "pago": datos_pago(cuentas_servicio.panel(USUARIO_DEMO["id"])),
+        "pago": datos_pago(cuentas_servicio.panel(sesion.id)),
         "periodo": _navegacion_mes(anio, mes),
         "consulta": _consulta(filtros),
         "categorias": categorias,
@@ -222,9 +238,9 @@ def movimientos(
 
 
 @router.get("/cuentas", response_class=HTMLResponse)
-def cuentas(request: Request, guardado: str | None = None):
-    panel = cuentas_servicio.panel(USUARIO_DEMO["id"])
-    context = _contexto_app(request, "cuentas") | {
+def cuentas(request: Request, guardado: str | None = None, sesion: UsuarioSesion = Depends(usuario_actual)):
+    panel = cuentas_servicio.panel(sesion.id)
+    context = _contexto_app(request, sesion, "cuentas") | {
         "panel": panel,
         "vista": vista_cuentas(panel),
         "pago": datos_pago(panel),
@@ -239,10 +255,11 @@ def categorias(
     anio: str | None = None,
     mes: str | None = None,
     guardado: str | None = None,
+    sesion: UsuarioSesion = Depends(usuario_actual),
 ):
     anio, mes = _mes_de_url(anio, mes)
-    datos = categorias_servicio.del_mes(USUARIO_DEMO["id"], anio, mes)
-    context = _contexto_app(request, "categorias") | {
+    datos = categorias_servicio.del_mes(sesion.id, anio, mes)
+    context = _contexto_app(request, sesion, "categorias") | {
         "datos": datos,
         "vista": vista_categorias(datos),
         "periodo": _navegacion_mes(anio, mes),
@@ -254,13 +271,13 @@ def categorias(
 # ---------- Presupuestos ----------
 
 @router.get("/presupuestos", response_class=HTMLResponse)
-def presupuestos(request: Request, anio: str | None = None, mes: str | None = None):
+def presupuestos(request: Request, anio: str | None = None, mes: str | None = None, sesion: UsuarioSesion = Depends(usuario_actual)):
     anio, mes = _mes_de_url(anio, mes)
     hoy = movimientos_servicio.hoy()
-    usuario = USUARIO_DEMO["id"]
+    usuario = sesion.id
     gastos = presupuestos_servicio.gastos_del_mes(usuario, anio, mes)
     datos = presupuestos_servicio.del_mes(usuario, anio, mes, gastos=gastos)  # sin listar el mes otra vez
-    context = _contexto_app(request, "presupuestos") | {
+    context = _contexto_app(request, sesion, "presupuestos") | {
         "datos": datos,
         "vista": presupuestos_vista.resumen(datos),
         "cal": presupuestos_vista.calendario(datos, hoy, gastos),
@@ -272,20 +289,20 @@ def presupuestos(request: Request, anio: str | None = None, mes: str | None = No
 
 @router.get("/presupuestos/nuevo", response_class=HTMLResponse)
 def presupuesto_nuevo(request: Request, anio: str | None = None, mes: str | None = None,
-                      volver: str | None = None):
+                      volver: str | None = None, sesion: UsuarioSesion = Depends(usuario_actual)):
     """Crear (o editar) el presupuesto del mes: un monto por categoría de gasto. "volver" es la
     pantalla a la que se regresa al guardar o cancelar: el Resumen o Presupuestos (la de siempre)."""
     anio, mes = _mes_de_url(anio, mes)
     if volver != "resumen":
         volver = "presupuestos"
-    usuario = USUARIO_DEMO["id"]
+    usuario = sesion.id
     actual = presupuestos_servicio.del_mes(usuario, anio, mes)
     limites = {c.categoria.id: c.limite for c in actual.categorias}
     ant_anio, ant_mes = (anio - 1, 12) if mes == 1 else (anio, mes - 1)
     anterior = {f.categoria.id: f.total for f in categorias_servicio.del_mes(usuario, ant_anio, ant_mes).gastos}
     filas = [{"categoria": c, "limite": limites.get(c.id), "mes_anterior": anterior.get(c.id, 0)}
              for c in categorias_servicio.listar(usuario) if c.tipo == "gasto"]
-    context = _contexto_app(request, volver) | {
+    context = _contexto_app(request, sesion, volver) | {
         "anio": anio,
         "mes": mes,
         "mes_anterior": ant_mes,

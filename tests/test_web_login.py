@@ -30,11 +30,13 @@ def test_login_static_assets_are_served():
         assert client.get(path).status_code == 200, path
 
 
-def test_la_raiz_lleva_al_resumen():
+def test_la_raiz_lleva_al_login_sin_sesion():
+    # Sin sesión (aquí no hay cookie; la raíz no usa la sesión simulada de los tests). Con sesión va
+    # al Resumen: tests/test_proteccion.py.
     r = client.get("/", follow_redirects=False)
 
-    assert r.status_code == 307
-    assert r.headers["location"] == "/resumen"
+    assert r.status_code == 303
+    assert r.headers["location"] == "/login"
 
 
 def test_preview_numbers_are_consistent():

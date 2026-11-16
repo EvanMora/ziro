@@ -6,9 +6,9 @@ from app.main import app
 client = TestClient(app)
 
 def test_read_home():
-    # La raíz ya no responde un JSON: lleva al Resumen (ver app/main.py).
+    # La raíz ya no responde un JSON: lleva al login sin sesión (ver app/main.py).
     response = client.get("/", follow_redirects=False)
 
-    assert response.status_code == 307
+    assert response.status_code == 303
 
-    assert response.headers["location"] == "/resumen"
+    assert response.headers["location"] == "/login"

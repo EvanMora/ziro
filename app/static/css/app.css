@@ -279,6 +279,7 @@
 .sb-new svg,
 .sb-item svg,
 .sb-toggle svg,
+.sb-logout svg,
 .topbar__menu svg,
 .month svg,
 .pending__icon svg {
@@ -381,7 +382,9 @@
   white-space: nowrap;
 }
 
-.sb-toggle {
+/* «Contraer barra» y «Cerrar sesión» se ven igual: texto secundario que se aclara al pasar. */
+.sb-toggle,
+.sb-logout {
   display: flex;
   align-items: center;
   gap: var(--space-12);
@@ -396,7 +399,8 @@
   cursor: pointer;
 }
 
-.sb-toggle:hover {
+.sb-toggle:hover,
+.sb-logout:hover {
   background: var(--color-canvas);
   color: var(--color-text);
 }

@@ -129,12 +129,22 @@ def _navegacion_mes(anio: int, mes: int, hoy: date | None = None) -> dict:
     }
 
 
-@router.get("/login", response_class=HTMLResponse)
-def login(request: Request):
+def _pagina_de_acceso(request: Request, plantilla: str):
+    """El login y el registro: con sesión abierta no hacen falta y llevan al Resumen."""
     if usuario_opcional(request) is not None:
         return RedirectResponse("/resumen", status_code=303)
     context = {"year": date.today().year, "preview": build_preview()}
-    return templates.TemplateResponse(request, "login.html", context)
+    return templates.TemplateResponse(request, plantilla, context)
+
+
+@router.get("/login", response_class=HTMLResponse)
+def login(request: Request):
+    return _pagina_de_acceso(request, "login.html")
+
+
+@router.get("/registro", response_class=HTMLResponse)
+def registro(request: Request):
+    return _pagina_de_acceso(request, "registro.html")
 
 
 @router.get("/resumen", response_class=HTMLResponse)

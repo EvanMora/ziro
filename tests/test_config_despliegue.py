@@ -2,11 +2,12 @@
 base de datos, qué cuenta como producción y qué exige la app para arrancar ahí. Ningún test de este
 archivo se conecta a una base distinta de la de los tests."""
 import inspect
+import json
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import StaticPool, text
 
 from app import config, main
 from app.models import Base
@@ -77,6 +78,25 @@ def test_produccion_sin_database_url_falla(entorno_limpio, variables):
 def test_es_postgres():
     assert database.es_postgres("postgresql+psycopg://u@h/db")
     assert not database.es_postgres("sqlite:///:memory:")
+
+
+def test_opciones_del_motor_para_postgres():
+    opciones = database.opciones_motor("postgresql+psycopg://u:p@h/db")
+
+    # Neon cierra las conexiones ociosas y su pooler reparte cada transacción a una conexión
+    # distinta: se revisan antes de usarlas y no se usan sentencias preparadas del lado del servidor.
+    assert opciones["pool_pre_ping"] is True
+    assert opciones["pool_recycle"] == 300
+    assert opciones["connect_args"] == {"prepare_threshold": None}
+
+
+def test_opciones_del_motor_para_sqlite():
+    en_memoria = database.opciones_motor("sqlite:///:memory:")
+    en_archivo = database.opciones_motor("sqlite:///data/x.sqlite")
+
+    assert en_memoria["connect_args"] == en_archivo["connect_args"] == {"check_same_thread": False}
+    assert en_memoria["poolclass"] is StaticPool
+    assert "poolclass" not in en_archivo and "pool_pre_ping" not in en_archivo
 
 
 # ---------- Producción ----------
@@ -165,3 +185,51 @@ def test_despues_de_sembrar_los_ids_siguen_sin_chocar():
     propia = categorias.crear(usuario.id, CategoriaEntrada(nombre="Mascotas", tipo="gasto"))
 
     assert propia.id == 8
+
+
+# ---------- Archivos de Vercel ----------
+
+def _lineas(nombre: str) -> list[str]:
+    return [linea.strip() for linea in (RAIZ / nombre).read_text(encoding="utf-8").splitlines()]
+
+
+def test_vercel_json():
+    configuracion = json.loads((RAIZ / "vercel.json").read_text(encoding="utf-8"))
+
+    assert configuracion["regions"] == ["iad1"]
+    funcion = configuracion["functions"]["app/main.py"]  # la entrada que detecta Vercel
+    assert funcion["maxDuration"] == 60
+    assert "tests/**" in funcion["excludeFiles"] and "data/**" in funcion["excludeFiles"]
+
+
+def test_vercelignore_protege_secretos():
+    lineas = _lineas(".vercelignore")
+
+    for privada in (".env", ".env.*", "data/", "*.sqlite"):
+        assert privada in lineas, privada
+    assert "!.env.example" in lineas
+
+
+def test_python_version():
+    assert (RAIZ / ".python-version").read_text(encoding="utf-8").strip() == "3.12"
+
+
+def test_ci_usa_312_y_requirements_dev():
+    ci = (RAIZ / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    assert "python-version: '3.12'" in ci
+    assert "pip install -r requirements-dev.txt" in ci
+
+
+def test_guia_de_despliegue():
+    guia = (RAIZ / "docs/despliegue-vercel.md").read_text(encoding="utf-8")
+
+    for clave in ("DATABASE_URL", "SECRET_KEY", "GEMINI_API_KEY", "ENVIRONMENT=production", "iad1", "aws-us-east-1"):
+        assert clave in guia, clave
+
+
+def test_env_example_documenta_el_despliegue():
+    ejemplo = (RAIZ / ".env.example").read_text(encoding="utf-8")
+
+    assert "DATABASE_URL" in ejemplo
+    assert "docs/despliegue-vercel.md" in ejemplo

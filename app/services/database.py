@@ -66,27 +66,36 @@ def _activar_claves_foraneas(conexion, _registro) -> None:
     cursor.close()
 
 
+def opciones_motor(url: str) -> dict[str, Any]:
+    """Las opciones de create_engine para la base de esa URL."""
+    if es_postgres(url):
+        return {
+            # Neon cierra las conexiones ociosas: se comprueban antes de usarlas y se renuevan cada
+            # 5 minutos, para no heredar una conexión muerta de una instancia que estuvo dormida.
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+            # Sin sentencias preparadas del lado del servidor: el pooler de Neon puede dar cada
+            # transacción a una conexión distinta, donde la sentencia preparada no existe.
+            "connect_args": {"prepare_threshold": None},
+        }
+    opciones: dict[str, Any] = {"connect_args": {"check_same_thread": False}}
+    if url in ("sqlite:///:memory:", "sqlite://"):
+        # En memoria, cada conexión nueva crearía una base VACÍA: comparten una sola.
+        opciones["poolclass"] = StaticPool
+    return opciones
+
+
 def obtener_motor_y_sesion(ruta: Any = None) -> tuple[Engine, sessionmaker[Session]]:
     """Obtiene o inicializa el motor SQLAlchemy y la fábrica de sesiones: los de la base de esta
     ejecución (url_base_de_datos) o, si se pasa, los de esa ruta o URL."""
     url = url_base_de_datos() if ruta is None else _url_de(ruta)
 
     if url not in _motores:
-        if es_postgres(url):
-            # Neon cierra las conexiones ociosas: se comprueban antes de usarlas y se renuevan
-            # cada 5 minutos, para no heredar una conexión muerta de una instancia dormida.
-            motor = create_engine(url, pool_pre_ping=True, pool_recycle=300)
-        else:
-            archivo = url.removeprefix("sqlite:///")
-            en_memoria = url in ("sqlite:///:memory:", "sqlite://")
-            if url.startswith("sqlite:///") and not en_memoria:
-                Path(archivo).parent.mkdir(parents=True, exist_ok=True)
-            motor = create_engine(
-                url,
-                connect_args={"check_same_thread": False},
-                # En memoria, cada conexión nueva crearía una base VACÍA: comparten una sola.
-                poolclass=StaticPool if en_memoria else None,
-            )
+        sqlite = not es_postgres(url)
+        if sqlite and url.startswith("sqlite:///") and url != "sqlite:///:memory:":
+            Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
+        motor = create_engine(url, **opciones_motor(url))
+        if sqlite:
             event.listen(motor, "connect", _activar_claves_foraneas)
         fabrica = sessionmaker(autocommit=False, autoflush=False, bind=motor)
         _motores[url] = (motor, fabrica)

@@ -21,6 +21,7 @@ ENDPOINTS = [
     ("PUT", "/api/v1/movimientos/1"), ("DELETE", "/api/v1/movimientos/1"),
     ("GET", "/api/v1/presupuestos/2026/10"), ("PUT", "/api/v1/presupuestos/2026/10"),
     ("POST", "/api/v1/ia/interpretar-movimiento"), ("GET", "/api/v1/ia/analisis-mes"),
+    ("GET", "/api/v1/ia/ordenar-otros"), ("POST", "/api/v1/ia/ordenar-otros/aplicar"),
 ]
 
 

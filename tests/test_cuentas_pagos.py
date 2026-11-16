@@ -57,10 +57,27 @@ def test_pago_baja_deuda_y_saldo_y_no_es_gasto():
         (pago("300000", origen=3), {"cuenta_origen_id": "No te alcanza: Efectivo tiene $245.500."}),
         (pago("1000", fecha=date(2026, 11, 16)), {"fecha": "La fecha no puede ser futura."}),
         (pago("1000", fecha=date(2026, 9, 30)), {"fecha": "La fecha es anterior a la creación de la cuenta."}),
+        (pago("0.001"), {"monto": "Escribe un monto mayor que 0."}),
+        # El día de creación de la tarjeta ya cuenta: la deuda se revisa.
+        (pago("900000", fecha=date(2026, 10, 1)), {"monto": "No puedes pagar más de lo que debes ($840.000)."}),
     ],
 )
 def test_reglas_del_pago(entrada, esperado):
     assert errores(cuentas.registrar_pago, U, 4, entrada) == esperado
+
+
+@pytest.mark.parametrize(
+    "entrada",
+    [
+        pago("0.01"),
+        pago("1"),
+        pago("840000"),  # exactamente la deuda
+        pago("1000", fecha=date(2026, 10, 1)),  # el día en que se creó la tarjeta
+        pago("1000", fecha=HOY),
+    ],
+)
+def test_pago_en_los_limites_se_acepta(entrada):
+    assert cuentas.registrar_pago(U, 4, entrada).monto == entrada.monto
 
 
 def test_pago_a_cuenta_de_dinero_o_inexistente():

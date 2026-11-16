@@ -373,6 +373,10 @@
   box-shadow: 0 -1px 0 var(--color-fill-muted);
 }
 
+.sb-logout-form {
+  margin: 0;
+}
+
 .sb-user {
   display: flex;
   align-items: center;

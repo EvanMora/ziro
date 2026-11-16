@@ -26,9 +26,12 @@ def test_cada_seccion_responde_y_marca_su_item(seccion):
 
 
 def test_barra_contraida_se_recuerda_con_cookie():
-    abierta = TestClient(app).get("/resumen").text
+    abierta_cliente = TestClient(app)
+    abierta_cliente.post("/api/v1/auth/login", json={"email": "evanpro@ziro.com", "password": "secreta123"})
+    abierta = abierta_cliente.get("/resumen").text
     contraida_client = TestClient(app)
     contraida_client.cookies.set("barra_contraida", "1")
+    contraida_client.post("/api/v1/auth/login", json={"email": "evanpro@ziro.com", "password": "secreta123"})
     contraida = contraida_client.get("/resumen").text
 
     assert 'class="shell" data-shell' in abierta

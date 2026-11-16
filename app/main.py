@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -14,6 +14,7 @@ from app.api import ia as api_ia
 from app.api import movimientos as api_movimientos
 from app.api import presupuestos as api_presupuestos
 from app.web import views
+from app.web.sesion import usuario_actual
 
 # Variables del archivo .env (p. ej. GEMINI_API_KEY). Las que ya existan en el entorno no se pisan.
 load_dotenv()
@@ -51,6 +52,8 @@ app.include_router(api_auth.router)
 
 
 @app.get("/", include_in_schema=False)
-def inicio():
-    """La raíz lleva al Resumen. TODO(backend): con el login real, a /login si no hay sesión."""
+def inicio(request: Request):
+    """La raíz lleva al Resumen, o a /login si no hay sesión todavía."""
+    if usuario_actual(request) is None:
+        return RedirectResponse("/login")
     return RedirectResponse("/resumen")

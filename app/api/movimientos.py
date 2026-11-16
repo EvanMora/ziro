@@ -2,7 +2,7 @@
 con el backend: los errores de validación siempre llegan como {"errores": {campo: mensaje}}."""
 from typing import Any
 
-from fastapi import APIRouter, Body, Query, Response
+from fastapi import APIRouter, Body, Depends, Query, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -13,8 +13,8 @@ from app.schemas.movimientos import (
     MovimientoEntrada,
     Tipo,
 )
+from app.api.comun import usuario_requerido
 from app.services import movimientos as servicio
-from app.web.sesion import USUARIO_DEMO
 
 router = APIRouter(prefix="/api/v1/movimientos", tags=["movimientos"])
 
@@ -46,10 +46,6 @@ def _entrada(cuerpo: Any) -> MovimientoEntrada | JSONResponse:
         return _errores(errores)
 
 
-def _usuario() -> int:
-    return USUARIO_DEMO["id"]
-
-
 @router.get("", response_model=ListaMovimientos)
 def listar(
     anio: int = Query(ge=2000, le=2100),
@@ -58,29 +54,30 @@ def listar(
     cuenta_id: int | None = None,
     categoria_id: int | None = None,
     q: str | None = None,
+    usuario: int = Depends(usuario_requerido),
 ):
     filtros = FiltrosMovimientos(tipo=tipo, cuenta_id=cuenta_id, categoria_id=categoria_id, q=q)
-    return servicio.listar(_usuario(), anio, mes, filtros)
+    return servicio.listar(usuario, anio, mes, filtros)
 
 
 @router.post("", response_model=Movimiento, status_code=201)
-def crear(cuerpo: Any = Body(None)):
+def crear(cuerpo: Any = Body(None), usuario: int = Depends(usuario_requerido)):
     entrada = _entrada(cuerpo)
     if isinstance(entrada, JSONResponse):
         return entrada
     try:
-        return servicio.crear(_usuario(), entrada)
+        return servicio.crear(usuario, entrada)
     except servicio.ErrorValidacion as error:
         return _errores(error.errores)
 
 
 @router.put("/{id}", response_model=Movimiento)
-def actualizar(id: int, cuerpo: Any = Body(None)):
+def actualizar(id: int, cuerpo: Any = Body(None), usuario: int = Depends(usuario_requerido)):
     entrada = _entrada(cuerpo)
     if isinstance(entrada, JSONResponse):
         return entrada
     try:
-        return servicio.actualizar(_usuario(), id, entrada)
+        return servicio.actualizar(usuario, id, entrada)
     except servicio.NoEncontrado:
         return JSONResponse(status_code=404, content={"detail": "No existe"})
     except servicio.ErrorValidacion as error:
@@ -88,9 +85,9 @@ def actualizar(id: int, cuerpo: Any = Body(None)):
 
 
 @router.delete("/{id}", status_code=204)
-def eliminar(id: int):
+def eliminar(id: int, usuario: int = Depends(usuario_requerido)):
     try:
-        servicio.eliminar(_usuario(), id)
+        servicio.eliminar(usuario, id)
     except servicio.NoEncontrado:
         return JSONResponse(status_code=404, content={"detail": "No existe"})
     return Response(status_code=204)

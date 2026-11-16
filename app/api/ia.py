@@ -6,13 +6,13 @@ Retry-After) · 503: Gemini no configurado o no disponible.
 - GET /analisis-mes: observaciones y consejo sobre un mes (menú del Resumen)."""
 from typing import Any
 
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, Depends, Query
 from fastapi.responses import JSONResponse
 
 from app.schemas.ia import MAX_TEXTO, AnalisisMes, MovimientoSugerido
 from app.services import ia as servicio
+from app.api.comun import usuario_requerido
 from app.services import movimientos as movimientos_servicio
-from app.web.sesion import USUARIO_DEMO
 
 router = APIRouter(prefix="/api/v1/ia", tags=["ia"])
 
@@ -22,7 +22,7 @@ def _errores(status: int, errores: dict[str, str]) -> JSONResponse:
 
 
 @router.post("/interpretar-movimiento", response_model=MovimientoSugerido)
-def interpretar_movimiento(cuerpo: Any = Body(None)):
+def interpretar_movimiento(cuerpo: Any = Body(None), usuario: int = Depends(usuario_requerido)):
     texto = cuerpo.get("texto") if isinstance(cuerpo, dict) else None
     if not isinstance(texto, str) or not texto.strip():
         return _errores(422, {"texto": "Escribe qué gastaste o recibiste."})
@@ -30,11 +30,12 @@ def interpretar_movimiento(cuerpo: Any = Body(None)):
         return _errores(422, {"texto": f"Máximo {MAX_TEXTO} caracteres."})
     if not servicio.configurado():
         return _errores(503, {"general": "El asistente no está configurado."})
-    return _llamar(servicio.interpretar, USUARIO_DEMO["id"], texto)
+    return _llamar(servicio.interpretar, usuario, texto)
 
 
 @router.get("/analisis-mes", response_model=AnalisisMes)
-def analisis_mes(anio: str | None = Query(None), mes: str | None = Query(None)):
+def analisis_mes(anio: str | None = Query(None), mes: str | None = Query(None),
+                 usuario: int = Depends(usuario_requerido)):
     try:
         anio_n, mes_n = int(anio or ""), int(mes or "")
     except ValueError:
@@ -44,7 +45,7 @@ def analisis_mes(anio: str | None = Query(None), mes: str | None = Query(None)):
         return _errores(422, {"general": "Mes no válido."})
     if not servicio.configurado():
         return _errores(503, {"general": "El asistente no está configurado."})
-    return _llamar(servicio.analizar_mes, USUARIO_DEMO["id"], anio_n, mes_n)
+    return _llamar(servicio.analizar_mes, usuario, anio_n, mes_n)
 
 
 def _llamar(funcion, *args):

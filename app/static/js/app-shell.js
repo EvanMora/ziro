@@ -5,6 +5,18 @@
  * - Celular: abre y cierra el cajón con el botón de menú, tocando fuera o con Esc.
  */
 (() => {
+  // La sesión caducó (o nunca existió): cualquier fetch de la app que responda 401 vuelve al
+  // login. Los de auth/login quedan fuera: allí el 401 es la contraseña equivocada.
+  const pedir = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const respuesta = await pedir(...args);
+    const url = typeof args[0] === "string" ? args[0] : args[0]?.url ?? "";
+    if (respuesta.status === 401 && !url.includes("/api/v1/auth/")) {
+      window.location.assign("/login");
+    }
+    return respuesta;
+  };
+
   const shell = document.querySelector("[data-shell]");
   if (!shell) return;
 

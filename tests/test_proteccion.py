@@ -9,7 +9,7 @@ from app.main import app
 
 pytestmark = pytest.mark.sin_plantilla
 
-PAGINAS = ["/resumen", "/movimientos", "/cuentas", "/categorias", "/presupuestos", "/presupuestos/nuevo"]
+PAGINAS = ["/resumen", "/movimientos", "/cuentas", "/categorias", "/presupuestos", "/presupuestos/nuevo", "/metas"]
 
 ENDPOINTS = [
     ("GET", "/api/v1/categorias"), ("POST", "/api/v1/categorias"),
@@ -21,6 +21,8 @@ ENDPOINTS = [
     ("PUT", "/api/v1/movimientos/1"), ("DELETE", "/api/v1/movimientos/1"),
     ("GET", "/api/v1/presupuestos/2026/10"), ("PUT", "/api/v1/presupuestos/2026/10"),
     ("POST", "/api/v1/ia/interpretar-movimiento"), ("GET", "/api/v1/ia/analisis-mes"),
+    ("GET", "/api/v1/metas"), ("POST", "/api/v1/metas"), ("PUT", "/api/v1/metas/1"), ("DELETE", "/api/v1/metas/1"),
+    ("POST", "/api/v1/metas/1/aportes"), ("DELETE", "/api/v1/metas/1/aportes/1"),
 ]
 
 
@@ -52,7 +54,8 @@ def test_todas_las_rutas_de_la_api_estan_en_la_lista():
     publicas = {"/api/v1/auth/registro", "/api/v1/auth/login", "/api/v1/auth/logout"}
     declaradas = {(metodo.upper(), ruta) for ruta, metodos in app.openapi()["paths"].items()
                   if ruta.startswith("/api/") and ruta not in publicas for metodo in metodos}
-    concretas = {(m, p.replace("{id}", "1").replace("{anio}", "2026").replace("{mes}", "10")) for m, p in declaradas}
+    concretas = {(m, p.replace("{id}", "1").replace("{aporte_id}", "1").replace("{anio}", "2026").replace("{mes}", "10"))
+                 for m, p in declaradas}
     assert concretas == set(ENDPOINTS)
 
 

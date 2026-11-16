@@ -105,6 +105,11 @@
     "pago-eliminado": "Pago eliminado",
     "presupuesto-creado": "Presupuesto creado",
     "presupuesto-guardado": "Presupuesto guardado",
+    "meta-guardada": "Meta guardada",
+    "meta-eliminada": "Meta eliminada",
+    "aporte-guardado": "Aporte guardado",
+    "retiro-guardado": "Retiro guardado",
+    "aporte-eliminado": "Aporte borrado",
   };
 
   const url = new URL(location.href);

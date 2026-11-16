@@ -14,10 +14,12 @@ from app.schemas.movimientos import FiltrosMovimientos
 from app.services import categorias as categorias_servicio
 from app.services import cuentas as cuentas_servicio
 from app.services import ia as ia_servicio
+from app.services import metas as metas_servicio
 from app.services import movimientos as movimientos_servicio
 from app.services import presupuestos as presupuestos_servicio
 from app.services.dashboard import obtener_resumen
 from app.web import formato, presupuestos_vista
+from app.web.metas_vista import vista_metas
 from app.web.presentacion import (
     datos_pago,
     vista_categorias,
@@ -63,8 +65,9 @@ SECCIONES = [
     ("cuentas", "Cuentas", "cuentas"),
     ("categorias", "Categorías", "categorias"),
     ("presupuestos", "Presupuestos", "presupuestos"),
+    ("metas", "Metas", "metas"),
 ]
-PROXIMAMENTE = [("Metas", "metas")]
+PROXIMAMENTE: list[tuple[str, str]] = []  # (nombre, ícono) de las secciones que aún no existen
 
 
 
@@ -312,3 +315,17 @@ def presupuesto_nuevo(request: Request, anio: str | None = None, mes: str | None
         "volver": f"/{volver}?anio={anio}&mes={mes}",
     }
     return templates.TemplateResponse(request, "app/presupuesto_nuevo.html", context)
+
+
+# ---------- Metas ----------
+
+@router.get("/metas", response_class=HTMLResponse)
+def metas(request: Request, guardado: str | None = None, sesion: UsuarioSesion = Depends(usuario_actual)):
+    hoy = movimientos_servicio.hoy()
+    panel = metas_servicio.panel(sesion.id)
+    context = _contexto_app(request, sesion, "metas", hoy=hoy) | {
+        "panel": panel,
+        "vista": vista_metas(panel, hoy),
+        "guardado": _entero(guardado),
+    }
+    return templates.TemplateResponse(request, "app/metas.html", context)

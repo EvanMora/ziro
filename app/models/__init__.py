@@ -1,17 +1,20 @@
 from app.models.base import Base
 from app.models.categorias import Categoria, CategoriaDB
 from app.models.cuentas import Cuenta, CuentaDB
+from app.models.metas import AporteMetaDB, MetaDB
 from app.models.movimientos import Movimiento, MovimientoDB
 from app.models.pagos_tarjeta import PagoTarjeta, PagoTarjetaDB
 from app.models.presupuestos import Presupuesto, PresupuestoDB
 from app.models.usuarios import Usuario, UsuarioDB
 
 __all__ = [
+    "AporteMetaDB",
     "Base",
     "Categoria",
     "CategoriaDB",
     "Cuenta",
     "CuentaDB",
+    "MetaDB",
     "Movimiento",
     "MovimientoDB",
     "PagoTarjeta",

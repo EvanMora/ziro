@@ -136,7 +136,8 @@ def reiniciar() -> None:
     from app.models import Base
 
     Base.metadata.create_all(bind=motor)
-    tablas = ("movimientos", "pagos_tarjeta", "presupuestos", "cuentas", "categorias", "usuarios")
+    tablas = ("aportes_meta", "metas", "movimientos", "pagos_tarjeta", "presupuestos", "cuentas", "categorias",
+              "usuarios")
     with fabrica() as db:
         for tabla in tablas:
             db.execute(text(f"DELETE FROM {tabla}"))

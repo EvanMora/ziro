@@ -14,6 +14,7 @@ from app.api import auth as api_auth
 from app.api import categorias as api_categorias
 from app.api import cuentas as api_cuentas
 from app.api import ia as api_ia
+from app.api import metas as api_metas
 from app.api import movimientos as api_movimientos
 from app.api import presupuestos as api_presupuestos
 from app.web import views
@@ -104,6 +105,7 @@ app.include_router(api_cuentas.router)
 app.include_router(api_cuentas.router_pagos)
 app.include_router(api_ia.router)
 app.include_router(api_presupuestos.router)
+app.include_router(api_metas.router)
 app.include_router(api_auth.router)
 
 

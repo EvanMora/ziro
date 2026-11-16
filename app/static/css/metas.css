@@ -1,0 +1,194 @@
+/*
+ * Sección Metas: el total arriba y una tarjeta por meta con su barra de progreso. Usa la pista de
+ * presupuesto-barra.css (pres-pista) y el botón "Nueva …" de cuentas.css. Solo variables de tokens.css.
+ * El progreso de las metas va en verde (--color-income, ver tokens.css); "atrasada" y "venció" en
+ * naranja, como la alerta de presupuesto. El rojo no se usa: una meta no es un error.
+ */
+
+/* ---------- Total ---------- */
+.metas-total {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: end;
+  gap: var(--space-8) var(--space-32);
+  margin-bottom: var(--gap-element);
+}
+
+.metas-total > div {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.metas-relleno {
+  --c: var(--color-income);
+}
+
+/* ---------- Tarjetas ---------- */
+.metas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--gap-element);
+  align-items: start;
+}
+
+.meta {
+  display: grid;
+  gap: var(--space-12);
+}
+
+.meta__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.meta__nombre {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+  margin: calc(var(--space-4) * -1) calc(var(--space-8) * -1);
+  padding: var(--space-4) var(--space-8);
+  border: 0;
+  background: none;
+  color: inherit;
+  border-radius: var(--radius-small);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.meta__nombre:hover {
+  background: var(--color-canvas);
+}
+
+.meta__nombre:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.meta__nombre .card-title {
+  overflow-wrap: anywhere;
+}
+
+.meta__nombre svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: var(--color-text-secondary);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.meta__chip {
+  flex: none;
+  padding: 3px 10px;
+  background: var(--color-fill-muted);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.meta--ok .meta__chip,
+.meta--cumplida .meta__chip {
+  background: var(--color-income-bg);
+  color: var(--color-income);
+}
+
+.meta--alerta .meta__chip {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.meta__monto {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.meta--alerta .meta__detalle {
+  color: var(--color-warning);
+}
+
+.meta__acciones {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.meta__acciones .btn {
+  flex: 1;
+}
+
+/* "Retirar" sin nada ahorrado: se ve apagado, no solo deja de responder. */
+.meta__acciones .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.meta.is-saved {
+  box-shadow: var(--focus-ring);
+}
+
+/* ---------- Últimos aportes ---------- */
+.meta__aportes summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.meta__aportes .rows {
+  margin-top: var(--space-8);
+}
+
+.meta__aportes li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-8) 0;
+}
+
+.meta__borrar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.meta__borrar:hover,
+.meta__borrar.is-armed {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.meta__borrar.is-armed {
+  width: auto;
+  padding: 0 var(--space-12);
+  font: inherit;
+  font-size: var(--text-caption);
+}
+
+.meta__borrar svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+@media (max-width: 640px) {
+  .metas-total {
+    grid-template-columns: 1fr;
+  }
+}

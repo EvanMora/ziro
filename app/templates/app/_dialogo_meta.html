@@ -1,0 +1,69 @@
+{#
+  Diálogo "Nueva meta" / "Editar meta" de la sección Metas. Lo maneja static/js/metas.js, que guarda
+  con la API JSON (/api/v1/metas). Mismos componentes que el diálogo de cuentas.
+#}
+<dialog class="dialog" id="dialogo-meta" aria-labelledby="meta-titulo" data-dialogo-meta>
+  <form class="dialog__body" data-form-meta novalidate>
+    <header class="dialog__head">
+      <h2 class="card-title" id="meta-titulo" data-titulo>Nueva meta</h2>
+      <button class="dialog__close" type="button" aria-label="Cerrar" data-cerrar>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </header>
+
+    <div class="alert alert--danger" role="alert" data-form-alert hidden></div>
+
+    <div class="field">
+      <div class="float-field">
+        <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3.5"/><circle cx="10" cy="10" r=".6"/></svg>
+        <input class="float-field__input" id="meta-nombre" name="nombre" type="text" maxlength="40"
+               autocomplete="off" placeholder=" " aria-describedby="meta-nombre-error" required>
+        <label class="float-field__label" for="meta-nombre">¿Para qué ahorras?</label>
+      </div>
+      <p class="field__message field__message--error" id="meta-nombre-error" hidden></p>
+    </div>
+
+    <div class="field">
+      <div class="float-field">
+        <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M13 6.5c-.6-1-1.7-1.5-3-1.5-1.8 0-3 .9-3 2.3 0 3.2 6 1.8 6 5.1 0 1.4-1.3 2.4-3 2.4-1.4 0-2.6-.6-3.2-1.6M10 3v14"/></svg>
+        <input class="float-field__input num" id="meta-objetivo" name="objetivo" type="text" inputmode="numeric"
+               autocomplete="off" placeholder=" " aria-describedby="meta-objetivo-error" required data-dinero>
+        <label class="float-field__label" for="meta-objetivo">¿Cuánto necesitas?</label>
+      </div>
+      <p class="field__message field__message--error" id="meta-objetivo-error" hidden></p>
+    </div>
+
+    <div class="field">
+      <div class="float-field">
+        <svg class="float-field__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="3"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg>
+        <input class="float-field__input" id="meta-fecha" name="fecha_limite" type="date" min="{{ hoy_iso }}"
+               placeholder=" " aria-describedby="meta-fecha-error meta-fecha-nota">
+        <label class="float-field__label" for="meta-fecha">¿Para cuándo? (opcional)</label>
+      </div>
+      <p class="field__message" id="meta-fecha-nota">Con fecha te decimos cuánto guardar cada mes.</p>
+      <p class="field__message field__message--error" id="meta-fecha-error" hidden></p>
+    </div>
+
+    <div class="dialog__actions">
+      <button class="btn btn--primary btn--lg btn--block" type="submit" data-guardar>
+        <span class="spinner" aria-hidden="true"></span>
+        <svg class="btn__check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" pathLength="1"/></svg>
+        <span data-label>Guardar</span>
+      </button>
+      <button class="dialog__delete" type="button" data-eliminar hidden>Eliminar meta</button>
+    </div>
+  </form>
+
+  <div class="dialog__body dialog__confirm" data-confirmar hidden>
+    <h2 class="card-title">Eliminar meta</h2>
+    <p data-confirmar-texto></p>
+    <div class="alert alert--danger" role="alert" data-confirmar-alert hidden></div>
+    <div class="dialog__actions dialog__actions--row">
+      <button class="btn btn--outline btn--lg" type="button" data-cancelar>Cancelar</button>
+      <button class="btn btn--danger btn--lg" type="button" data-confirmar-eliminar>
+        <span class="spinner" aria-hidden="true"></span>
+        <span data-label>Eliminar</span>
+      </button>
+    </div>
+  </div>
+</dialog>

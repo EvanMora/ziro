@@ -9,9 +9,6 @@ from app.models.base import Base
 
 MAX_NOMBRE = 40
 
-# Tipos: ahorros|corriente|billetera|efectivo|tarjeta (ver app/schemas/cuentas.py)
-TIPO_TARJETA = "tarjeta"
-
 
 class CuentaDB(Base):
     """Una cuenta de dinero (ahorros, corriente, billetera, efectivo) o una tarjeta de crédito.

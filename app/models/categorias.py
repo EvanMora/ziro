@@ -6,6 +6,18 @@ from app.models.base import Base
 
 MAX_NOMBRE = 40
 
+# Las 7 categorías predeterminadas del sistema (docs/alcance.md). La base las siembra al crearse
+# (o al vaciarse en tests) con estos ids fijos; el catálogo y los tests las esperan en 1-7.
+PREDETERMINADAS: tuple[tuple[int, str, str], ...] = (
+    (1, "Salario", "ingreso"),
+    (2, "Otros ingresos", "ingreso"),
+    (3, "Mercado", "gasto"),
+    (4, "Transporte", "gasto"),
+    (5, "Arriendo", "gasto"),
+    (6, "Ocio", "gasto"),
+    (7, "Otros gastos", "gasto"),
+)
+
 
 class CategoriaDB(Base):
     """Una categoría de movimiento, propia o predeterminada del sistema.

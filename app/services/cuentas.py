@@ -13,21 +13,22 @@ Reglas: nombre obligatorio, de hasta MAX_NOMBRE caracteres y único entre las cu
 eliminarla con movimientos exige pasarlos a otra cuenta del mismo grupo, y si no hay otra, no se
 elimina. Nunca se borran movimientos.
 
-El usuario demo empieza con las tres cuentas que usa la plantilla de services/movimientos.py y una
-tarjeta. Se crean el primer día del mes anterior a hoy(), así solo cuentan uno o dos meses de la
-plantilla y ninguna queda en negativo.
+Las cuentas y los pagos viven en las tablas `cuentas` y `pagos_tarjeta` (app/models/cuentas.py y
+app/models/pagos_tarjeta.py). Las firmas y los modelos se mantienen.
 
-Por ahora todo vive en memoria del proceso. TODO(backend): tabla Cuenta con usuario_id; los saldos
-salen de SUMs sobre movimientos con fecha >= creada_en. Las firmas y los modelos se mantienen.
-
-services/movimientos.py importa este módulo. Las funciones de aquí que necesitan los movimientos
-lo importan adentro para no formar un ciclo (igual que services/categorias.py).
+El usuario demo (id 1) empieza con las tres cuentas que usa la plantilla de
+services/movimientos.py y una tarjeta. Se crean el primer día del mes anterior a hoy(), así solo
+cuentan uno o dos meses de la plantilla y ninguna queda en negativo.
 """
 from calendar import monthrange
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy import delete, func, select, update
+
+from app.models.cuentas import CuentaDB
+from app.models.movimientos import MovimientoDB
+from app.models.pagos_tarjeta import PagoTarjetaDB
 from app.schemas.cuentas import (
     Cuenta,
     CuentaConSaldo,
@@ -37,51 +38,33 @@ from app.schemas.cuentas import (
     PanelCuentas,
 )
 from app.schemas.movimientos import CuentaRef, FiltrosMovimientos, Movimiento
-from app.services.comun import ErrorValidacion, NoEncontrado, limpiar_texto, normalizar
+from app.services import database
+from app.services.comun import (
+    DEMO_USUARIO_ID,
+    ErrorValidacion,
+    NoEncontrado,
+    limpiar_texto,
+    normalizar,
+)
 from app.web.formato import dinero
 
 MAX_NOMBRE = 40
 MAX_CUENTAS = 30  # por usuario
 
-# TODO(backend): quitar cuando exista el registro de usuarios; hoy solo el demo tiene cuentas de prueba.
-DEMO_USUARIO_ID = 1
-# (id, nombre, tipo, icono, tono, inicial, cupo, dia_pago)
+# (nombre, tipo, icono, tono, inicial, cupo, dia_pago)
 _DEMO = [
-    (1, "Cuenta de ahorros", "ahorros", "banco", "azul", "1644400", None, None),
-    (2, "Billetera digital", "billetera", "celular", "ciruela", "1053300", None, None),
-    (3, "Efectivo", "efectivo", "billetes", "cafe", "707500", None, None),
-    (4, "Tarjeta de crédito", "tarjeta", "tarjeta", "violeta", "840000", "3000000", 15),
+    ("Cuenta de ahorros", "ahorros", "banco", "azul", "1644400", None, None),
+    ("Billetera digital", "billetera", "celular", "ciruela", "1053300", None, None),
+    ("Efectivo", "efectivo", "billetes", "cafe", "707500", None, None),
+    ("Tarjeta de crédito", "tarjeta", "tarjeta", "violeta", "840000", "3000000", 15),
 ]
 # Nombres que usa la plantilla de movimientos → id de la cuenta demo.
 _PLANTILLA = {"Cuenta de ahorros": 1, "Billetera digital": 2, "Efectivo": 3}
-_PRIMER_ID = 100
-
-
-
-@dataclass
-class _PagoGuardado:
-    usuario_id: int
-    tarjeta_id: int
-    origen_id: int
-    monto: Decimal
-    fecha: date
-
-
-_cuentas: dict[int, tuple[int, Cuenta]] = {}  # id → (usuario_id, cuenta)
-_pagos: dict[int, _PagoGuardado] = {}
-_demo_creado = False
-_siguiente_id = _PRIMER_ID
-_siguiente_pago = 1
 
 
 def reiniciar() -> None:
     """Vuelve al estado inicial (el demo se crea de nuevo al pedirlo). Solo para tests."""
-    global _demo_creado, _siguiente_id, _siguiente_pago
-    _cuentas.clear()
-    _pagos.clear()
-    _demo_creado = False
-    _siguiente_id = _PRIMER_ID
-    _siguiente_pago = 1
+    database.reiniciar()
 
 
 def es_tarjeta(tipo: str) -> bool:
@@ -102,24 +85,41 @@ def _mes_anterior(d: date) -> date:
     return date(d.year - 1, 12, 1) if d.month == 1 else date(d.year, d.month - 1, 1)
 
 
-def _crear_demo() -> None:
-    global _demo_creado
-    if _demo_creado:
+def _como_cuenta(fila: CuentaDB) -> Cuenta:
+    from app.services.movimientos import _normalizar_monto
+    return Cuenta(
+        id=fila.id, nombre=fila.nombre, tipo=fila.tipo, icono=fila.icono, tono=fila.tono,
+        creada_en=fila.creada_en, inicial=_normalizar_monto(fila.inicial),
+        cupo=_normalizar_monto(fila.cupo) if fila.cupo is not None else None,
+        dia_pago=fila.dia_pago,
+    )
+
+
+def _sembrar_demo(db) -> None:
+    """Las cuentas del usuario demo, solo si no tiene ninguna todavía."""
+    hay = db.execute(
+        select(func.count(CuentaDB.id)).where(CuentaDB.usuario_id == DEMO_USUARIO_ID)
+    ).scalar_one()
+    if hay:
         return
-    _demo_creado = True
     creada_en = _mes_anterior(_hoy())
-    for id, nombre, tipo, icono, tono, inicial, cupo, dia_pago in _DEMO:
-        _cuentas[id] = (DEMO_USUARIO_ID, Cuenta(
-            id=id, nombre=nombre, tipo=tipo, icono=icono, tono=tono, creada_en=creada_en,
-            inicial=Decimal(inicial), cupo=Decimal(cupo) if cupo else None, dia_pago=dia_pago))
+    for nombre, tipo, icono, tono, inicial, cupo, dia_pago in _DEMO:
+        db.add(CuentaDB(
+            usuario_id=DEMO_USUARIO_ID, nombre=nombre, tipo=tipo, icono=icono, tono=tono,
+            creada_en=creada_en, inicial=Decimal(inicial),
+            cupo=Decimal(cupo) if cupo else None, dia_pago=dia_pago))
+    db.flush()
 
 
 def listar(usuario_id: int) -> list[Cuenta]:
     """En el orden en que se crearon."""
-    # TODO(backend): SELECT ... WHERE usuario_id = :usuario_id ORDER BY id.
-    if usuario_id == DEMO_USUARIO_ID:
-        _crear_demo()
-    return [c for dueno, c in _cuentas.values() if dueno == usuario_id]
+    with database.sesion() as db:
+        if usuario_id == DEMO_USUARIO_ID:
+            _sembrar_demo(db)
+        filas = db.execute(
+            select(CuentaDB).where(CuentaDB.usuario_id == usuario_id).order_by(CuentaDB.id)
+        ).scalars().all()
+        return [_como_cuenta(f) for f in filas]
 
 
 def obtener(usuario_id: int, id: int) -> Cuenta | None:
@@ -152,8 +152,19 @@ def _efecto(c: Cuenta, m: Movimiento) -> Decimal:
     return -suma if es_tarjeta(c.tipo) else suma
 
 
-def _pagos_de(usuario_id: int) -> list[tuple[int, _PagoGuardado]]:
-    return [(id, p) for id, p in _pagos.items() if p.usuario_id == usuario_id]
+def _pagos_de(usuario_id: int) -> list[tuple[int, int, int, Decimal, date]]:
+    """Los pagos del usuario como tuplas (id, tarjeta_id, origen_id, monto, fecha), para no
+    arrastrar objetos de la sesión fuera de ella."""
+    from app.services import movimientos
+    with database.sesion() as db:
+        return [
+            (p.id, p.tarjeta_id, p.origen_id, movimientos._normalizar_monto(p.monto), p.fecha)
+            for p in db.execute(
+                select(PagoTarjetaDB)
+                .where(PagoTarjetaDB.usuario_id == usuario_id)
+                .order_by(PagoTarjetaDB.id)
+            ).scalars().all()
+        ]
 
 
 def _saldos(usuario_id: int, lista: list[Cuenta], sin_pago: int | None = None) -> dict[int, Decimal]:
@@ -169,22 +180,28 @@ def _saldos(usuario_id: int, lista: list[Cuenta], sin_pago: int | None = None) -
         c = por_id.get(m.cuenta.id)
         if c and m.fecha >= c.creada_en:
             saldos[c.id] += _efecto(c, m)
-    for id, p in _pagos_de(usuario_id):
-        if id == sin_pago:
+    for id_pago, tarjeta_id, origen_id, monto, fecha in _pagos_de(usuario_id):
+        if id_pago == sin_pago:
             continue
-        for cuenta_id in (p.tarjeta_id, p.origen_id):  # baja la deuda de una y el saldo de la otra
+        for cuenta_id in (tarjeta_id, origen_id):  # baja la deuda de una y el saldo de la otra
             c = por_id.get(cuenta_id)
-            if c and p.fecha >= c.creada_en:
-                saldos[c.id] -= p.monto
-    return saldos
+            if c and fecha >= c.creada_en:
+                saldos[c.id] -= monto
+    from app.services import movimientos
+    return {id_: movimientos._normalizar_monto(v) for id_, v in saldos.items()}
 
 
 def _pagos_por_cuenta(usuario_id: int) -> dict[int, int]:
     """Cuántos pagos tiene cada cuenta, como tarjeta o como cuenta de origen."""
     cuantos: dict[int, int] = {}
-    for _, p in _pagos_de(usuario_id):
-        for cuenta_id in (p.tarjeta_id, p.origen_id):
-            cuantos[cuenta_id] = cuantos.get(cuenta_id, 0) + 1
+    with database.sesion() as db:
+        for columna in (PagoTarjetaDB.tarjeta_id, PagoTarjetaDB.origen_id):
+            for cuenta_id, n in db.execute(
+                select(columna, func.count(PagoTarjetaDB.id))
+                .where(PagoTarjetaDB.usuario_id == usuario_id)
+                .group_by(columna)
+            ).all():
+                cuantos[cuenta_id] = cuantos.get(cuenta_id, 0) + n
     return cuantos
 
 
@@ -216,21 +233,24 @@ def panel(usuario_id: int) -> PanelCuentas:
     usos = _usos_por_cuenta(usuario_id)  # _saldos ya sembró desde la cuenta más vieja
     pagos = _pagos_por_cuenta(usuario_id)
     hoy = _hoy()
+    from app.services import movimientos
+    _nm = movimientos._normalizar_monto
     dinero, tarjetas = [], []
     for c in lista:
         saldo = saldos[c.id]
         if es_tarjeta(c.tipo):
             fecha = proxima_fecha_pago(c.dia_pago, hoy)
-            tarjetas.append(CuentaConSaldo(cuenta=c, saldo=saldo, disponible=c.cupo - saldo, fecha_limite=fecha,
+            tarjetas.append(CuentaConSaldo(cuenta=c, saldo=saldo, disponible=_nm(c.cupo - saldo), fecha_limite=fecha,
                                            dias_para_pagar=(fecha - hoy).days, usos=usos.get(c.id, 0),
                                            pagos=pagos.get(c.id, 0)))
         else:
             dinero.append(CuentaConSaldo(cuenta=c, saldo=saldo, disponible=None, fecha_limite=None,
-                                         dias_para_pagar=None, usos=usos.get(c.id, 0), pagos=pagos.get(c.id, 0)))
+                                         dias_para_pagar=None, usos=usos.get(c.id, 0),
+                                         pagos=pagos.get(c.id, 0)))
     tarjetas.sort(key=lambda t: (t.fecha_limite, t.cuenta.nombre))
-    tienes = sum((c.saldo for c in dinero), Decimal(0))
-    debes = sum((t.saldo for t in tarjetas), Decimal(0))
-    return PanelCuentas(dinero=dinero, tarjetas=tarjetas, tienes=tienes, debes=debes, te_queda=tienes - debes)
+    tienes = _nm(sum((c.saldo for c in dinero), Decimal(0)))
+    debes = _nm(sum((t.saldo for t in tarjetas), Decimal(0)))
+    return PanelCuentas(dinero=dinero, tarjetas=tarjetas, tienes=tienes, debes=debes, te_queda=_nm(tienes - debes))
 
 
 # ---------- Crear, editar y eliminar ----------
@@ -281,14 +301,14 @@ def _normalizada(e: CuentaEntrada) -> CuentaEntrada:
                                 "cupo": _normalizar_monto(e.cupo) if e.cupo is not None else None})
 
 
-def _datos(e: CuentaEntrada, nombre: str) -> dict:
+def _datos(e: CuentaEntrada) -> dict:
     tarjeta = es_tarjeta(e.tipo)
-    return {"nombre": nombre, "tipo": e.tipo, "icono": e.icono, "tono": e.tono,
+    return {"nombre": e.nombre, "tipo": e.tipo, "icono": e.icono, "tono": e.tono,
             "cupo": e.cupo if tarjeta else None, "dia_pago": e.dia_pago if tarjeta else None}
 
 
 def _texto_usos(movimientos: int, pagos: int) -> str:
-    """"Tiene 1 movimiento y 2 pagos. Elige a qué cuenta pasarlos." (o "pasarlo" si es uno solo)."""
+    """"Tiene 1 movimiento y 2 pagos. Elige a qué cuenta pasarlos" (o "pasarlo" si es uno solo)."""
     partes = []
     if movimientos:
         partes.append("1 movimiento" if movimientos == 1 else f"{movimientos} movimientos")
@@ -299,19 +319,20 @@ def _texto_usos(movimientos: int, pagos: int) -> str:
 
 
 def crear(usuario_id: int, e: CuentaEntrada) -> Cuenta:
-    # TODO(backend): INSERT con usuario_id.
-    global _siguiente_id
     nombre = _validar(usuario_id, e, None)
     e = _normalizada(e)
-    cuenta = Cuenta(id=_siguiente_id, creada_en=_hoy(), inicial=e.saldo, **_datos(e, nombre))
-    _siguiente_id += 1
-    _cuentas[cuenta.id] = (usuario_id, cuenta)
-    return cuenta
+    datos = _datos(e) | {"nombre": nombre}
+    with database.sesion() as db:
+        fila = CuentaDB(usuario_id=usuario_id, creada_en=_hoy(), inicial=e.saldo, **datos)
+        db.add(fila)
+        db.flush()
+        id_cuenta = fila.id
+    # Respuesta con los valores que se guardaron, sin re-leer de la BD: el contrato de la API
+    # serializa el Decimal tal y como se normalizó (p. ej. 0.001 → "0.00").
+    return Cuenta(id=id_cuenta, creada_en=_hoy(), inicial=e.saldo, **datos)
 
 
 def actualizar(usuario_id: int, id: int, e: CuentaEntrada) -> Cuenta:
-    # TODO(backend): UPDATE por id y usuario_id.
-    from app.services import movimientos
     actual = obtener(usuario_id, id)
     if actual is None:
         raise NoEncontrado(id)
@@ -323,16 +344,16 @@ def actualizar(usuario_id: int, id: int, e: CuentaEntrada) -> Cuenta:
         inicial = actual.inicial  # no se tocó el saldo
     else:
         inicial = actual.inicial + e.saldo - _saldos(usuario_id, [actual])[id]
-    cuenta = actual.model_copy(update=_datos(e, nombre) | {"inicial": inicial})
-    _cuentas[id] = (usuario_id, cuenta)
-    movimientos.cambiar_cuenta(usuario_id, id, ref(cuenta))  # los movimientos llevan el nombre
-    return cuenta
+    datos = _datos(e) | {"nombre": nombre, "inicial": inicial}
+    with database.sesion() as db:
+        db.execute(
+            update(CuentaDB).where(CuentaDB.id == id, CuentaDB.usuario_id == usuario_id).values(**datos)
+        )
+    return actual.model_copy(update=datos)
 
 
 def eliminar(usuario_id: int, id: int, mover_a: int | None = None) -> None:
     """Si la cuenta tiene movimientos, mover_a es la cuenta (del mismo grupo) que los recibe."""
-    # TODO(backend): UPDATE de movimientos y DELETE, en una transacción.
-    from app.services import movimientos
     cuenta = obtener(usuario_id, id)
     if cuenta is None:
         raise NoEncontrado(id)
@@ -351,27 +372,52 @@ def eliminar(usuario_id: int, id: int, mover_a: int | None = None) -> None:
             raise ErrorValidacion({"mover_a": "Elige otra cuenta."})
         if es_tarjeta(destino.tipo) != tarjeta:
             raise ErrorValidacion({"mover_a": "Elige una tarjeta." if tarjeta else "Elige una cuenta de dinero."})
-        movimientos.cambiar_cuenta(usuario_id, id, ref(destino))
-        for _, p in _pagos_de(usuario_id):
-            if p.tarjeta_id == id:
-                p.tarjeta_id = destino.id
-            if p.origen_id == id:
-                p.origen_id = destino.id
-    del _cuentas[id]
+        # Reasignar y borrar en la misma transacción: no se pierde ningún movimiento ni pago.
+        with database.sesion() as db:
+            db.execute(
+                update(MovimientoDB)
+                .where(MovimientoDB.cuenta_id == id, MovimientoDB.usuario_id == usuario_id)
+                .values(cuenta_id=destino.id)
+            )
+            db.execute(
+                update(PagoTarjetaDB)
+                .where(PagoTarjetaDB.tarjeta_id == id, PagoTarjetaDB.usuario_id == usuario_id)
+                .values(tarjeta_id=destino.id)
+            )
+            db.execute(
+                update(PagoTarjetaDB)
+                .where(PagoTarjetaDB.origen_id == id, PagoTarjetaDB.usuario_id == usuario_id)
+                .values(origen_id=destino.id)
+            )
+            db.execute(
+                delete(CuentaDB).where(CuentaDB.id == id, CuentaDB.usuario_id == usuario_id)
+            )
+    else:
+        with database.sesion() as db:
+            borradas = db.execute(
+                delete(CuentaDB).where(CuentaDB.id == id, CuentaDB.usuario_id == usuario_id)
+            ).rowcount
+            if not borradas:
+                raise NoEncontrado(id)
 
 
 # ---------- Pagos de tarjeta ----------
 
-def _leer_pago(id: int, p: _PagoGuardado) -> Pago:
-    tarjeta = obtener(p.usuario_id, p.tarjeta_id)
-    origen = obtener(p.usuario_id, p.origen_id)
-    return Pago(id=id, fecha=p.fecha, monto=p.monto, tarjeta=ref(tarjeta), origen=ref(origen),
+def _como_pago(fila: PagoTarjetaDB) -> Pago:
+    tarjeta = obtener(fila.usuario_id, fila.tarjeta_id)
+    origen = obtener(fila.usuario_id, fila.origen_id)
+    from app.services import movimientos
+    return Pago(id=fila.id, fecha=fila.fecha, monto=movimientos._normalizar_monto(fila.monto),
+                tarjeta=ref(tarjeta), origen=ref(origen),
                 tarjeta_icono=tarjeta.icono, tarjeta_tono=tarjeta.tono)
 
 
 def obtener_pago(usuario_id: int, id: int) -> Pago | None:
-    p = _pagos.get(id)
-    return _leer_pago(id, p) if p and p.usuario_id == usuario_id else None
+    with database.sesion() as db:
+        fila = db.execute(
+            select(PagoTarjetaDB).where(PagoTarjetaDB.id == id, PagoTarjetaDB.usuario_id == usuario_id)
+        ).scalar_one_or_none()
+        return _como_pago(fila) if fila is not None else None
 
 
 def _validar_pago(usuario_id: int, tarjeta: Cuenta, e: PagoEntrada, pago_id: int | None) -> tuple[Cuenta, Decimal]:
@@ -399,8 +445,16 @@ def _validar_pago(usuario_id: int, tarjeta: Cuenta, e: PagoEntrada, pago_id: int
         errores["cuenta_origen_id"] = "Elige de qué cuenta sale el pago."
         origen = None
 
-    anterior = _pagos.get(pago_id) if pago_id is not None else None
-    fecha_nueva = anterior is None or e.fecha != anterior.fecha
+    anterior_fecha = None
+    if pago_id is not None:
+        with database.sesion() as db:
+            fila = db.execute(
+                select(PagoTarjetaDB).where(PagoTarjetaDB.id == pago_id,
+                                            PagoTarjetaDB.usuario_id == usuario_id)
+            ).scalar_one_or_none()
+            if fila is not None:
+                anterior_fecha = fila.fecha
+    fecha_nueva = pago_id is None or e.fecha != anterior_fecha
     if e.fecha > _hoy():
         errores["fecha"] = "La fecha no puede ser futura."
     elif fecha_nueva and (e.fecha < tarjeta.creada_en or (origen and e.fecha < origen.creada_en)):
@@ -427,51 +481,66 @@ def _tarjeta(usuario_id: int, id: int) -> Cuenta:
 
 
 def registrar_pago(usuario_id: int, tarjeta_id: int, e: PagoEntrada) -> Pago:
-    # TODO(backend): INSERT en PagoTarjeta con usuario_id.
-    global _siguiente_pago
     tarjeta = _tarjeta(usuario_id, tarjeta_id)
     origen, monto = _validar_pago(usuario_id, tarjeta, e, None)
-    id = _siguiente_pago
-    _siguiente_pago += 1
-    _pagos[id] = _PagoGuardado(usuario_id, tarjeta.id, origen.id, monto, e.fecha)
-    return _leer_pago(id, _pagos[id])
+    with database.sesion() as db:
+        fila = PagoTarjetaDB(usuario_id=usuario_id, tarjeta_id=tarjeta.id, origen_id=origen.id,
+                             monto=monto, fecha=e.fecha)
+        db.add(fila)
+        db.flush()
+        id_pago = fila.id
+    return obtener_pago(usuario_id, id_pago)
 
 
 def actualizar_pago(usuario_id: int, id: int, e: PagoEntrada) -> Pago:
     """Cambia monto, cuenta de origen o fecha. La tarjeta no cambia."""
-    # TODO(backend): UPDATE por id y usuario_id.
-    p = _pagos.get(id)
-    if p is None or p.usuario_id != usuario_id:
+    anterior = obtener_pago(usuario_id, id)
+    if anterior is None:
         raise NoEncontrado(id)
-    tarjeta = _tarjeta(usuario_id, p.tarjeta_id)
+    tarjeta = _tarjeta(usuario_id, anterior.tarjeta.id)
     origen, monto = _validar_pago(usuario_id, tarjeta, e, id)
-    _pagos[id] = _PagoGuardado(usuario_id, tarjeta.id, origen.id, monto, e.fecha)
-    return _leer_pago(id, _pagos[id])
+    with database.sesion() as db:
+        db.execute(
+            update(PagoTarjetaDB)
+            .where(PagoTarjetaDB.id == id, PagoTarjetaDB.usuario_id == usuario_id)
+            .values(origen_id=origen.id, monto=monto, fecha=e.fecha)
+        )
+    return obtener_pago(usuario_id, id)
 
 
 def eliminar_pago(usuario_id: int, id: int) -> None:
-    # TODO(backend): DELETE por id y usuario_id.
-    p = _pagos.get(id)
-    if p is None or p.usuario_id != usuario_id:
-        raise NoEncontrado(id)
-    del _pagos[id]
+    with database.sesion() as db:
+        borradas = db.execute(
+            delete(PagoTarjetaDB).where(PagoTarjetaDB.id == id, PagoTarjetaDB.usuario_id == usuario_id)
+        ).rowcount
+        if not borradas:
+            raise NoEncontrado(id)
 
 
 def pagos_del_mes(usuario_id: int, anio: int, mes: int, filtros: FiltrosMovimientos) -> list[Pago]:
     """Los pagos del mes que deja ver el filtro de Movimientos, del más nuevo al más viejo. No son
     gastos ni ingresos ni tienen categoría: con esos filtros no aparece ninguno."""
-    # TODO(backend): SELECT de PagoTarjeta del mes con los filtros.
     if filtros.tipo or filtros.categoria_id:
         return []
+    primero = date(anio, mes, 1)
+    if mes == 12:
+        siguiente = date(anio + 1, 1, 1)
+    else:
+        siguiente = date(anio, mes + 1, 1)
     buscar = normalizar((filtros.q or "").strip())
-    pagos = []
-    for id, p in _pagos_de(usuario_id):
-        if (p.fecha.year, p.fecha.month) != (anio, mes):
-            continue
-        if filtros.cuenta_id and filtros.cuenta_id not in (p.tarjeta_id, p.origen_id):
-            continue
-        pago = _leer_pago(id, p)
-        if buscar and buscar not in normalizar(f"Pago {pago.tarjeta.nombre} {pago.origen.nombre}"):
-            continue
-        pagos.append(pago)
-    return sorted(pagos, key=lambda x: (x.fecha, x.id), reverse=True)
+    with database.sesion() as db:
+        filas = db.execute(
+            select(PagoTarjetaDB)
+            .where(PagoTarjetaDB.usuario_id == usuario_id,
+                   PagoTarjetaDB.fecha >= primero, PagoTarjetaDB.fecha < siguiente)
+            .order_by(PagoTarjetaDB.fecha.desc(), PagoTarjetaDB.id.desc())
+        ).scalars().all()
+        pagos = []
+        for fila in filas:
+            if filtros.cuenta_id and filtros.cuenta_id not in (fila.tarjeta_id, fila.origen_id):
+                continue
+            pago = _como_pago(fila)
+            if buscar and buscar not in normalizar(f"Pago {pago.tarjeta.nombre} {pago.origen.nombre}"):
+                continue
+            pagos.append(pago)
+        return pagos

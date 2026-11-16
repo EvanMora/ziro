@@ -1,16 +1,21 @@
 """Movimientos: listar con filtros, crear, editar y eliminar.
 
-Por ahora guarda todo en memoria del proceso (se pierde al reiniciar el servidor). Cada mes se
-siembra con datos de prueba la primera vez que se pide, así cualquier mes tiene datos y los
+Guardados en la tabla `movimientos` (modelo app/models/movimientos.py), filtrados por usuario_id.
+Las firmas, los modelos de app/schemas/movimientos.py y las reglas de _validar() se mantienen.
+
+La plantilla de datos de prueba (services/cuentas.py) se siembra en SQL, solo para el usuario
+demo y solo en los meses que aún no tienen ningún movimiento: así cada mes tiene datos y los
 tests con meses fijos dan siempre las mismas cifras. En el mes en curso solo se siembran los
 días que ya pasaron.
-
-TODO(backend): reemplazar el almacén por consultas filtradas por usuario_id. Las firmas, los
-modelos de app/schemas/movimientos.py y las reglas de _validar() se mantienen.
 """
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy import delete, func, select, update
+
+from app.models.categorias import CategoriaDB
+from app.models.cuentas import CuentaDB
+from app.models.movimientos import MovimientoDB
 from app.schemas.movimientos import (
     CategoriaRef,
     CuentaRef,
@@ -20,7 +25,9 @@ from app.schemas.movimientos import (
     MovimientoEntrada,
 )
 from app.services import categorias, cuentas
+from app.services import database
 from app.services.comun import (  # la API los toma de aquí: servicio.ErrorValidacion
+    DEMO_USUARIO_ID,
     ErrorValidacion,
     NoEncontrado,
     limpiar_texto,
@@ -46,27 +53,14 @@ _PLANTILLA = [
     (10, "Recarga tarjeta de transporte", "Transporte", "Billetera digital", "gasto", "148000"),
 ]
 
-_movimientos: dict[int, Movimiento] = {}
-_meses_sembrados: set[tuple[int, int]] = set()
-_siguiente_id = 1
-
 
 def hoy() -> date:
     return date.today()
 
 
 def reiniciar() -> None:
-    """Vacía el almacén. Solo para tests."""
-    global _siguiente_id
-    _movimientos.clear()
-    _meses_sembrados.clear()
-    _siguiente_id = 1
-
-
-def _nuevo_id() -> int:
-    global _siguiente_id
-    _siguiente_id += 1
-    return _siguiente_id - 1
+    """Vacía la tabla (y vuelve a sembrar predeterminadas). Solo para tests."""
+    database.reiniciar()
 
 
 def _ultimo_dia(anio: int, mes: int) -> int:
@@ -74,22 +68,72 @@ def _ultimo_dia(anio: int, mes: int) -> int:
     return (siguiente - date(anio, mes, 1)).days
 
 
-def _sembrar(anio: int, mes: int) -> None:
-    if (anio, mes) in _meses_sembrados:
+def _como_movimiento(fila: MovimientoDB, nombre_categoria: str, tipo_categoria: str, nombre_cuenta: str) -> Movimiento:
+    return Movimiento(
+        id=fila.id, fecha=fila.fecha, descripcion=fila.descripcion,
+        categoria=CategoriaRef(id=fila.categoria_id, nombre=nombre_categoria, tipo=tipo_categoria),
+        cuenta=CuentaRef(id=fila.cuenta_id, nombre=nombre_cuenta),
+        tipo=fila.tipo, monto=_normalizar_monto(fila.monto),
+    )
+
+
+def _columnas():
+    """El movimiento con los nombres y el tipo de su categoría y cuenta, para armar el
+    Movimiento del contrato sin una consulta por fila."""
+    return (
+        select(MovimientoDB, CategoriaDB.nombre, CategoriaDB.tipo, CuentaDB.nombre)
+        .join(CategoriaDB, MovimientoDB.categoria_id == CategoriaDB.id)
+        .join(CuentaDB, MovimientoDB.cuenta_id == CuentaDB.id)
+    )
+
+
+def _sembrar(usuario_id: int, anio: int, mes: int) -> None:
+    """La plantilla de prueba, en SQL. Solo el usuario demo y solo si el mes está vacío."""
+    if usuario_id != DEMO_USUARIO_ID:
         return
-    _meses_sembrados.add((anio, mes))
-    ultimo = _ultimo_dia(anio, mes)
+    primero = date(anio, mes, 1)
+    if mes == 12:
+        siguiente = date(anio + 1, 1, 1)
+    else:
+        siguiente = date(anio, mes + 1, 1)
+    with database.sesion() as db:
+        cuantos = db.execute(
+            select(func.count(MovimientoDB.id)).where(
+                MovimientoDB.usuario_id == usuario_id,
+                MovimientoDB.fecha >= primero, MovimientoDB.fecha < siguiente,
+            )
+        ).scalar_one()
+        if cuantos:
+            return
     limite = hoy()
-    # De la más vieja a la más nueva, para que los ids crezcan con la fecha.
-    for dia, descripcion, categoria, cuenta, tipo, monto in reversed(_PLANTILLA):
+    ultimo = _ultimo_dia(anio, mes)
+    # De la más vieja a la más nueva, para que los ids crezcan con la fecha. Refs resueltas fuera
+    # de la transacción: puede crear las cuentas demo si la tabla está vacía.
+    filas = []
+    for dia, descripcion, nombre_categoria, nombre_cuenta, tipo, monto in reversed(_PLANTILLA):
         fecha = date(anio, mes, min(dia, ultimo))
-        ref_cuenta = cuentas.ref_plantilla(cuenta)  # None si la persona eliminó esa cuenta
+        ref_cuenta = cuentas.ref_plantilla(nombre_cuenta)  # None si la persona la eliminó
         if fecha > limite or ref_cuenta is None:
             continue
-        nuevo = Movimiento(id=_nuevo_id(), fecha=fecha, descripcion=descripcion,
-                           categoria=categorias.ref(categorias.predeterminada(categoria)),
-                           cuenta=ref_cuenta, tipo=tipo, monto=Decimal(monto))
-        _movimientos[nuevo.id] = nuevo
+        ref_categoria = categorias.ref(categorias.predeterminada(nombre_categoria))
+        filas.append((ref_cuenta.id, ref_categoria.id, tipo, Decimal(monto), fecha, descripcion))
+    if not filas:
+        return
+    with database.sesion() as db:
+        # Re-chequeo dentro de la transacción: dos peticiones a la vez no siembran dos veces.
+        cuantos = db.execute(
+            select(func.count(MovimientoDB.id)).where(
+                MovimientoDB.usuario_id == usuario_id,
+                MovimientoDB.fecha >= primero, MovimientoDB.fecha < siguiente,
+            )
+        ).scalar_one()
+        if cuantos:
+            return
+        for cuenta_id, categoria_id, tipo, monto, fecha, descripcion in filas:
+            db.add(MovimientoDB(
+                usuario_id=usuario_id, cuenta_id=cuenta_id, categoria_id=categoria_id,
+                tipo=tipo, monto=monto, fecha=fecha, descripcion=descripcion,
+            ))
 
 
 def _coincide(m: Movimiento, f: FiltrosMovimientos, buscar: str) -> bool:
@@ -112,74 +156,71 @@ def catalogo(usuario_id: int) -> tuple[list[CuentaRef], list[CategoriaRef]]:
 def desde(usuario_id: int, fecha: date) -> list[Movimiento]:
     """Los movimientos con fecha >= fecha. Antes siembra cada mes desde ahí hasta hoy, para que
     los saldos no dependan de qué meses se hayan visitado."""
-    # TODO(backend): SELECT ... WHERE usuario_id = :usuario_id AND fecha >= :fecha.
     anio, mes = fecha.year, fecha.month
     limite = hoy()
     while (anio, mes) <= (limite.year, limite.month):
-        _sembrar(anio, mes)
+        _sembrar(usuario_id, anio, mes)
         anio, mes = (anio + 1, 1) if mes == 12 else (anio, mes + 1)
-    return [m for m in _movimientos.values() if m.fecha >= fecha]
+    with database.sesion() as db:
+        filas = db.execute(
+            _columnas().where(MovimientoDB.usuario_id == usuario_id, MovimientoDB.fecha >= fecha)
+            .order_by(MovimientoDB.fecha, MovimientoDB.id)
+        ).all()
+        return [_como_movimiento(*f) for f in filas]
 
 
 def usos_por_cuenta(usuario_id: int) -> dict[int, int]:
     """Cuántos movimientos tiene cada cuenta, en los meses ya sembrados."""
-    # TODO(backend): SELECT cuenta_id, COUNT(*) ... GROUP BY cuenta_id.
-    usos: dict[int, int] = {}
-    for m in _movimientos.values():
-        usos[m.cuenta.id] = usos.get(m.cuenta.id, 0) + 1
-    return usos
-
-
-def cambiar_cuenta(usuario_id: int, de_id: int, a: CuentaRef) -> None:
-    """Pone la cuenta "a" en los movimientos de la cuenta de_id: renombrar (de_id == a.id) o
-    pasar los movimientos de una cuenta que se va a eliminar."""
-    for id, m in _movimientos.items():
-        if m.cuenta.id == de_id:
-            _movimientos[id] = m.model_copy(update={"cuenta": a})
+    with database.sesion() as db:
+        pares = db.execute(
+            select(MovimientoDB.cuenta_id, func.count(MovimientoDB.id))
+            .where(MovimientoDB.usuario_id == usuario_id)
+            .group_by(MovimientoDB.cuenta_id)
+        ).all()
+        return {cuenta_id: cuantos for cuenta_id, cuantos in pares}
 
 
 def usos_por_categoria(usuario_id: int) -> dict[int, int]:
     """Cuántos movimientos tiene cada categoría, contando todos los meses."""
-    # TODO(backend): SELECT categoria_id, COUNT(*) ... GROUP BY categoria_id.
-    usos: dict[int, int] = {}
-    for m in _movimientos.values():
-        usos[m.categoria.id] = usos.get(m.categoria.id, 0) + 1
-    return usos
-
-
-def cambiar_categoria(usuario_id: int, de_id: int, a: CategoriaRef) -> None:
-    """Pone la categoría "a" en los movimientos de la categoría de_id. Sirve para renombrar
-    (de_id == a.id) y para pasar los movimientos de una categoría que se va a eliminar."""
-    # TODO(backend): con la tabla de movimientos no hace falta al renombrar; al eliminar es un UPDATE.
-    for id, m in _movimientos.items():
-        if m.categoria.id == de_id:
-            _movimientos[id] = m.model_copy(update={"categoria": a})
+    with database.sesion() as db:
+        pares = db.execute(
+            select(MovimientoDB.categoria_id, func.count(MovimientoDB.id))
+            .where(MovimientoDB.usuario_id == usuario_id)
+            .group_by(MovimientoDB.categoria_id)
+        ).all()
+        return {categoria_id: cuantos for categoria_id, cuantos in pares}
 
 
 def listar(usuario_id: int, anio: int, mes: int, filtros: FiltrosMovimientos | None = None) -> ListaMovimientos:
-    # TODO(backend): SELECT de los movimientos de usuario_id en el mes, con los filtros.
     filtros = filtros or FiltrosMovimientos()
-    _sembrar(anio, mes)
+    _sembrar(usuario_id, anio, mes)
+    primero = date(anio, mes, 1)
+    ultimo = date(anio + mes // 12, mes % 12 + 1, 1)
+    with database.sesion() as db:
+        filas = db.execute(
+            _columnas().where(MovimientoDB.usuario_id == usuario_id,
+                              MovimientoDB.fecha >= primero, MovimientoDB.fecha < ultimo)
+            .order_by(MovimientoDB.fecha.desc(), MovimientoDB.id.desc())
+        ).all()
+        movimientos = [_como_movimiento(*f) for f in filas]
     buscar = _normalizar((filtros.q or "").strip())
-    encontrados = sorted(
-        (m for m in _movimientos.values()
-         if m.fecha.year == anio and m.fecha.month == mes and _coincide(m, filtros, buscar)),
-        key=lambda m: (m.fecha, m.id),
-        reverse=True,
-    )
+    encontrados = [m for m in movimientos if _coincide(m, filtros, buscar)]
     return ListaMovimientos(
         anio=anio,
         mes=mes,
         filtros=filtros,
         movimientos=encontrados,
-        ingresos=sum((m.monto for m in encontrados if m.tipo == "ingreso"), Decimal(0)),
-        gastos=sum((m.monto for m in encontrados if m.tipo == "gasto"), Decimal(0)),
+        ingresos=_normalizar_monto(sum((m.monto for m in encontrados if m.tipo == "ingreso"), Decimal(0))),
+        gastos=_normalizar_monto(sum((m.monto for m in encontrados if m.tipo == "gasto"), Decimal(0))),
     )
 
 
 def obtener(usuario_id: int, id: int) -> Movimiento | None:
-    # TODO(backend): SELECT por id y usuario_id.
-    return _movimientos.get(id)
+    with database.sesion() as db:
+        fila = db.execute(
+            _columnas().where(MovimientoDB.id == id, MovimientoDB.usuario_id == usuario_id)
+        ).first()
+        return _como_movimiento(*fila) if fila is not None else None
 
 
 def _normalizar_monto(monto: Decimal) -> Decimal:
@@ -216,28 +257,46 @@ def _validar(usuario_id: int, entrada: MovimientoEntrada) -> tuple[CategoriaRef,
 def _guardar(usuario_id: int, id: int, entrada: MovimientoEntrada) -> Movimiento:
     categoria, cuenta, descripcion = _validar(usuario_id, entrada)
     # Sembrar el mes de destino antes de guardar, para que una siembra posterior no lo pise.
-    _sembrar(entrada.fecha.year, entrada.fecha.month)
-    movimiento = Movimiento(id=id, fecha=entrada.fecha, descripcion=descripcion, categoria=categoria,
-                            cuenta=cuenta, tipo=entrada.tipo, monto=_normalizar_monto(entrada.monto))
-    _movimientos[id] = movimiento
-    return movimiento
+    _sembrar(usuario_id, entrada.fecha.year, entrada.fecha.month)
+    monto = _normalizar_monto(entrada.monto)
+    with database.sesion() as db:
+        if id is None:
+            fila = MovimientoDB(usuario_id=usuario_id, cuenta_id=cuenta.id, categoria_id=categoria.id,
+                                tipo=entrada.tipo, monto=monto, fecha=entrada.fecha,
+                                descripcion=descripcion)
+            db.add(fila)
+            db.flush()
+            id = fila.id
+        else:
+            db.execute(
+                update(MovimientoDB)
+                .where(MovimientoDB.id == id, MovimientoDB.usuario_id == usuario_id)
+                .values(cuenta_id=cuenta.id, categoria_id=categoria.id, tipo=entrada.tipo,
+                        monto=monto, fecha=entrada.fecha, descripcion=descripcion)
+            )
+    return Movimiento(id=id, fecha=entrada.fecha, descripcion=descripcion,
+                      categoria=categoria, cuenta=cuenta, tipo=entrada.tipo, monto=monto)
 
 
 def crear(usuario_id: int, entrada: MovimientoEntrada) -> Movimiento:
-    # TODO(backend): INSERT con usuario_id.
-    _validar(usuario_id, entrada)
-    _sembrar(entrada.fecha.year, entrada.fecha.month)  # antes del id, para que el nuevo sea el mayor
-    return _guardar(usuario_id, _nuevo_id(), entrada)
+    # El id lo pone la secuencia de la tabla; None lo señala en _guardar.
+    return _guardar(usuario_id, None, entrada)
 
 
 def actualizar(usuario_id: int, id: int, entrada: MovimientoEntrada) -> Movimiento:
-    # TODO(backend): UPDATE por id y usuario_id.
-    if id not in _movimientos:
-        raise NoEncontrado(id)
+    with database.sesion() as db:
+        existe = db.execute(
+            select(MovimientoDB.id).where(MovimientoDB.id == id, MovimientoDB.usuario_id == usuario_id)
+        ).scalar_one_or_none()
+        if existe is None:
+            raise NoEncontrado(id)
     return _guardar(usuario_id, id, entrada)
 
 
 def eliminar(usuario_id: int, id: int) -> None:
-    # TODO(backend): DELETE por id y usuario_id.
-    if _movimientos.pop(id, None) is None:
-        raise NoEncontrado(id)
+    with database.sesion() as db:
+        borradas = db.execute(
+            delete(MovimientoDB).where(MovimientoDB.id == id, MovimientoDB.usuario_id == usuario_id)
+        ).rowcount
+        if not borradas:
+            raise NoEncontrado(id)

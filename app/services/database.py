@@ -15,8 +15,10 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from sqlalchemy import Engine, StaticPool, create_engine, text
+from sqlalchemy import Engine, StaticPool, create_engine, func, select, text
 from sqlalchemy.orm import Session, sessionmaker
+
+from app.models.categorias import CategoriaDB, PREDETERMINADAS
 
 DATABASE_PATH: Any = os.environ.get("DATABASE_PATH", "data/usuarios.sqlite")
 _motores: dict[str, tuple[Engine, sessionmaker[Session]]] = {}
@@ -57,8 +59,27 @@ def obtener_motor_y_sesion(ruta: Any = None) -> tuple[Engine, sessionmaker[Sessi
         # Importar app.models (no solo usuarios) para que create_all conozca todas las tablas.
         from app.models import Base
         Base.metadata.create_all(bind=motor)
+        with fabrica() as db:
+            _sembrar_predeterminadas(db)
+            db.commit()
 
     return _motores[url]
+
+
+def _sembrar_predeterminadas(db: Session) -> None:
+    """Inserta las 7 categorías predeterminadas (ids 1-7) si la tabla no tiene ninguna.
+
+    Es la siembra básica del sistema: sin ellas la app no puede registrar movimientos. Solo se
+    siembra si no hay ninguna predeterminada, así los reinicios de tests no duplican."""
+    hay = db.execute(
+        select(func.count(CategoriaDB.id)).where(CategoriaDB.usuario_id.is_(None))
+    ).scalar_one()
+    if hay:
+        return
+    db.add_all([
+        CategoriaDB(id=id_, nombre=nombre, tipo=tipo, usuario_id=None)
+        for id_, nombre, tipo in PREDETERMINADAS
+    ])
 
 
 def obtener_motor(ruta: Any = None) -> Engine:
@@ -100,11 +121,8 @@ def obtener_db() -> Generator[Session, None, None]:
 
 
 def reiniciar() -> None:
-    """Vacía todas las tablas y reinicia las secuencias autoincrement. Para tests.
-
-    Los hijos antes que los padres (movimientos y pagos_tarjeta referencian cuentas y
-    categorías; presupuestos, categorías; todos, usuarios).
-    """
+    """Vacía todas las tablas, reinicia las secuencias autoincrement y vuelve a sembrar las
+    categorías predeterminadas. Para tests."""
     motor, fabrica = obtener_motor_y_sesion()
     from app.models import Base
 
@@ -119,6 +137,5 @@ def reiniciar() -> None:
             except Exception:
                 # sqlite_sequence solo existe si ya hubo autoincrement
                 pass
+        _sembrar_predeterminadas(db)
         db.commit()
-    # TODO(backend): cuando services/categorias.py use la tabla, volver a sembrar aquí las
-    # 7 predeterminadas (el id debe quedar en 1-7, como espera el catálogo).

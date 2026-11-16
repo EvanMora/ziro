@@ -1,15 +1,22 @@
 """Presupuestos mensuales por categoría (ver app/schemas/presupuestos.py).
 
-Fase 2. Falta lo que no se decidió aún, por ejemplo qué pasa con el presupuesto de una categoría
-que se elimina: por ahora ese monto simplemente deja de mostrarse.
+Fase 2.
 
-TODO(backend): tabla Presupuesto (id, usuario_id, categoria_id, monto_limite, mes, anio), ver
-docs/alcance.md. Mientras tanto se guarda en memoria y se borra al reiniciar el servidor.
+Los límites viven en la tabla `presupuestos` (app/models/presupuestos.py): una fila por
+usuario, mes y categoría de gasto, con unicidad uq_presupuesto_mes. Crear o reemplazar el
+presupuesto de un mes es un DELETE del mes y un INSERT de los nuevos, en una sola transacción.
+
+El ejemplo de la demo (el mes anterior al actual, con una categoría en alerta y otra excedida
+frente a la plantilla de movimientos) se siembra solo para el usuario demo, solo si ese mes aún
+no tiene ningún presupuesto.
 """
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 
+from sqlalchemy import delete, func, select
+
+from app.models.presupuestos import PresupuestoDB
 from app.schemas.movimientos import ListaMovimientos
 from app.schemas.presupuestos import (
     Estado,
@@ -18,24 +25,17 @@ from app.schemas.presupuestos import (
     PresupuestoDelMes,
     PresupuestoEntrada,
 )
-from app.services import categorias, movimientos
-from app.services.comun import ErrorValidacion
+from app.services import categorias, database, movimientos
+from app.services.comun import DEMO_USUARIO_ID, ErrorValidacion
 
 MAX_MONTO = movimientos.MAX_MONTO
 
-# (usuario_id, anio, mes) → {categoria_id: límite}
-_presupuestos: dict[tuple[int, int, int], dict[int, Decimal]] = {}
-_sembrados: set[tuple[int, int, int]] = set()
-
-# Ejemplo para la demo: el mes anterior al actual ya trae presupuesto, con una categoría en
-# alerta y otra excedida frente a la plantilla de movimientos (services/movimientos.py).
 _EJEMPLO = {"Arriendo": "1100000", "Mercado": "450000", "Transporte": "300000", "Ocio": "150000"}
 
 
 def reiniciar() -> None:
-    """Vacía el almacén. Solo para tests."""
-    _presupuestos.clear()
-    _sembrados.clear()
+    """Vacía la tabla (y vuelve a sembrar predeterminadas). Solo para tests."""
+    database.reiniciar()
 
 
 def _mes_anterior(d: date) -> tuple[int, int]:
@@ -43,13 +43,36 @@ def _mes_anterior(d: date) -> tuple[int, int]:
 
 
 def _sembrar(usuario_id: int, anio: int, mes: int) -> None:
-    clave = (usuario_id, anio, mes)
-    if clave in _sembrados:
+    """El ejemplo del mes anterior para la demo, solo si ese mes aún no tiene presupuesto."""
+    if usuario_id != DEMO_USUARIO_ID:
         return
-    _sembrados.add(clave)
-    if (anio, mes) == _mes_anterior(movimientos.hoy()) and clave not in _presupuestos:
-        _presupuestos[clave] = {categorias.predeterminada(nombre).id: Decimal(monto)
-                                for nombre, monto in _EJEMPLO.items()}
+    # COUNT primero: si el mes ya tiene presupuesto no se siembra nada (y no hace falta el hoy).
+    with database.sesion() as db:
+        cuantos = db.execute(
+            select(func.count(PresupuestoDB.id)).where(
+                PresupuestoDB.usuario_id == usuario_id,
+                PresupuestoDB.anio == anio, PresupuestoDB.mes == mes,
+            )
+        ).scalar_one()
+        if cuantos:
+            return
+    if (anio, mes) != _mes_anterior(movimientos.hoy()):
+        return
+    ejemplo = [(categorias.predeterminada(nombre).id, Decimal(monto))
+               for nombre, monto in _EJEMPLO.items()]
+    with database.sesion() as db:
+        # Re-chequeo dentro de la transacción: dos peticiones a la vez no siembran dos veces.
+        cuantos = db.execute(
+            select(func.count(PresupuestoDB.id)).where(
+                PresupuestoDB.usuario_id == usuario_id,
+                PresupuestoDB.anio == anio, PresupuestoDB.mes == mes,
+            )
+        ).scalar_one()
+        if cuantos:
+            return
+        for categoria_id, monto in ejemplo:
+            db.add(PresupuestoDB(usuario_id=usuario_id, categoria_id=categoria_id,
+                                 anio=anio, mes=mes, monto_limite=monto))
 
 
 def _estado(pct: float) -> Estado:
@@ -70,7 +93,7 @@ def _dias(lista, anio: int, mes: int) -> list[GastoDelDia]:
         cuantos[m.fecha] += 1
     primero = date(anio, mes, 1)
     ultimo = movimientos._ultimo_dia(anio, mes)
-    return [GastoDelDia(fecha=d, total=totales[d], movimientos=cuantos[d])
+    return [GastoDelDia(fecha=d, total=movimientos._normalizar_monto(totales[d]), movimientos=cuantos[d])
             for d in (primero + timedelta(days=i) for i in range(ultimo))]
 
 
@@ -81,12 +104,23 @@ def gastos_del_mes(usuario_id: int, anio: int, mes: int, lista: ListaMovimientos
     return [m for m in lista.movimientos if m.tipo == "gasto"]
 
 
+def _limites(usuario_id: int, anio: int, mes: int) -> dict[int, Decimal]:
+    from app.services.movimientos import _normalizar_monto
+    with database.sesion() as db:
+        filas = db.execute(
+            select(PresupuestoDB.categoria_id, PresupuestoDB.monto_limite)
+            .where(PresupuestoDB.usuario_id == usuario_id,
+                   PresupuestoDB.anio == anio, PresupuestoDB.mes == mes)
+        ).all()
+        return {categoria_id: _normalizar_monto(monto) for categoria_id, monto in filas}
+
+
 def del_mes(usuario_id: int, anio: int, mes: int, gastos: list | None = None,
             lista_categorias: list | None = None) -> PresupuestoDelMes:
     """gastos (gastos_del_mes) y lista_categorias (categorias.listar): si la ruta ya los leyó, para
     no listar el mes ni leer las categorías dos veces en la misma petición."""
     _sembrar(usuario_id, anio, mes)
-    limites = _presupuestos.get((usuario_id, anio, mes), {})
+    limites = _limites(usuario_id, anio, mes)
     gastos = gastos_del_mes(usuario_id, anio, mes) if gastos is None else gastos
 
     por_categoria: dict[int, Decimal] = defaultdict(Decimal)
@@ -94,22 +128,23 @@ def del_mes(usuario_id: int, anio: int, mes: int, gastos: list | None = None,
         por_categoria[m.categoria.id] += m.monto
 
     filas = []
+    _nm = movimientos._normalizar_monto
     for c in categorias.listar(usuario_id) if lista_categorias is None else lista_categorias:
         if c.id not in limites:
             continue  # sin presupuesto, o la categoría ya no existe
-        limite, gastado = limites[c.id], por_categoria[c.id]
+        limite, gastado = limites[c.id], _nm(por_categoria[c.id])
         pct = _pct(gastado, limite)
         filas.append(PresupuestoCategoria(categoria=categorias.ref(c), limite=limite, gastado=gastado,
-                                          restante=limite - gastado, pct=pct, estado=_estado(pct)))
+                                          restante=_nm(limite - gastado), pct=pct, estado=_estado(pct)))
 
-    total = sum((f.limite for f in filas), Decimal(0))
-    gastado = sum((f.gastado for f in filas), Decimal(0))
+    total = _nm(sum((f.limite for f in filas), Decimal(0)))
+    gastado = _nm(sum((f.gastado for f in filas), Decimal(0)))
     con_presupuesto = {f.categoria.id for f in filas}
     pct = _pct(gastado, total)
     return PresupuestoDelMes(
         anio=anio, mes=mes, creado=bool(filas), categorias=filas, total=total, gastado=gastado,
-        restante=total - gastado, pct=pct, estado=_estado(pct),
-        sin_presupuesto=sum((m.monto for m in gastos if m.categoria.id not in con_presupuesto), Decimal(0)),
+        restante=_nm(total - gastado), pct=pct, estado=_estado(pct),
+        sin_presupuesto=_nm(sum((m.monto for m in gastos if m.categoria.id not in con_presupuesto), Decimal(0))),
         dias=_dias(gastos, anio, mes),
     )
 
@@ -144,7 +179,13 @@ def guardar(usuario_id: int, anio: int, mes: int, entrada: PresupuestoEntrada) -
     if errores:
         raise ErrorValidacion(errores)
 
-    # TODO(backend): en una transacción, DELETE de los presupuestos del mes e INSERT de los nuevos.
-    _sembrados.add((usuario_id, anio, mes))
-    _presupuestos[(usuario_id, anio, mes)] = limites
+    # Reemplazar el mes: borrar e insertar, en una sola transacción.
+    with database.sesion() as db:
+        db.execute(
+            delete(PresupuestoDB).where(PresupuestoDB.usuario_id == usuario_id,
+                                        PresupuestoDB.anio == anio, PresupuestoDB.mes == mes)
+        )
+        for categoria_id, monto in limites.items():
+            db.add(PresupuestoDB(usuario_id=usuario_id, categoria_id=categoria_id,
+                                 anio=anio, mes=mes, monto_limite=monto))
     return del_mes(usuario_id, anio, mes)

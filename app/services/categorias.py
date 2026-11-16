@@ -10,15 +10,17 @@ Reglas (docs/alcance.md y app/schemas/categorias.py):
   alcance dejaba "bloquear o reasignar" por decidir: así no se pierde ningún movimiento y tampoco
   hace falta borrarlos uno por uno.
 
-Por ahora las propias viven en memoria del proceso, como los movimientos.
-TODO(backend): tabla Categoria con usuario_id (null en las predeterminadas). Las firmas y los
-modelos se mantienen; usos y cambiar_categoria() pasan a ser un COUNT y un UPDATE de movimientos.
+Las predeterminadas (usuario_id NULL) las siembra app/services/database.py al crear el esquema;
+las propias viven en la tabla `categorias` con su dueño. Las firmas y los modelos se mantienen.
 
 services/movimientos.py importa este módulo para validar la categoría de cada movimiento. Las
 funciones de aquí que necesitan los movimientos lo importan adentro para no formar un ciclo.
 """
 from decimal import Decimal
 
+from sqlalchemy import delete, select, update
+
+from app.models.categorias import CategoriaDB
 from app.schemas.categorias import (
     Categoria,
     CategoriaDelMes,
@@ -26,6 +28,7 @@ from app.schemas.categorias import (
     CategoriasDelMes,
 )
 from app.schemas.movimientos import CategoriaRef
+from app.services import database
 from app.services.comun import (
     ErrorValidacion,
     NoEncontrado,
@@ -37,26 +40,10 @@ from app.services.comun import (
 MAX_NOMBRE = 40
 MAX_PROPIAS = 50  # por usuario
 
-_PREDETERMINADAS = [
-    Categoria(id=1, nombre="Salario", tipo="ingreso", predeterminada=True),
-    Categoria(id=2, nombre="Otros ingresos", tipo="ingreso", predeterminada=True),
-    Categoria(id=3, nombre="Mercado", tipo="gasto", predeterminada=True),
-    Categoria(id=4, nombre="Transporte", tipo="gasto", predeterminada=True),
-    Categoria(id=5, nombre="Arriendo", tipo="gasto", predeterminada=True),
-    Categoria(id=6, nombre="Ocio", tipo="gasto", predeterminada=True),
-    Categoria(id=7, nombre="Otros gastos", tipo="gasto", predeterminada=True),
-]
-_PRIMER_ID_PROPIO = 100
-
-_propias: dict[int, tuple[int, Categoria]] = {}  # id → (usuario_id, categoría)
-_siguiente_id = _PRIMER_ID_PROPIO
-
 
 def reiniciar() -> None:
-    """Borra las categorías propias. Solo para tests."""
-    global _siguiente_id
-    _propias.clear()
-    _siguiente_id = _PRIMER_ID_PROPIO
+    """Vacía la tabla (y vuelve a sembrar las predeterminadas). Solo para tests."""
+    database.reiniciar()
 
 
 def ref(categoria: Categoria) -> CategoriaRef:
@@ -64,22 +51,49 @@ def ref(categoria: Categoria) -> CategoriaRef:
     return CategoriaRef(id=categoria.id, nombre=categoria.nombre, tipo=categoria.tipo)
 
 
+def _como_categoria(fila: CategoriaDB) -> Categoria:
+    return Categoria(
+        id=fila.id, nombre=fila.nombre, tipo=fila.tipo, predeterminada=fila.usuario_id is None,
+    )
+
+
 def predeterminada(nombre: str) -> Categoria:
-    return next(c for c in _PREDETERMINADAS if c.nombre == nombre)
+    with database.sesion() as db:
+        fila = db.execute(
+            select(CategoriaDB).where(CategoriaDB.usuario_id.is_(None), CategoriaDB.nombre == nombre)
+        ).scalar_one()
+        return _como_categoria(fila)
 
 
 def _de_usuario(usuario_id: int) -> list[Categoria]:
-    return [c for dueno, c in _propias.values() if dueno == usuario_id]
+    with database.sesion() as db:
+        filas = db.execute(
+            select(CategoriaDB).where(CategoriaDB.usuario_id == usuario_id).order_by(CategoriaDB.id)
+        ).scalars().all()
+        return [_como_categoria(f) for f in filas]
 
 
 def listar(usuario_id: int) -> list[Categoria]:
     """Primero las predeterminadas y luego las propias, en el orden en que se crearon."""
-    # TODO(backend): SELECT ... WHERE usuario_id IS NULL OR usuario_id = :usuario_id.
-    return [*_PREDETERMINADAS, *_de_usuario(usuario_id)]
+    with database.sesion() as db:
+        filas = db.execute(
+            select(CategoriaDB)
+            .where(CategoriaDB.usuario_id.is_(None) | (CategoriaDB.usuario_id == usuario_id))
+            # False (NULL) primero: las predeterminadas van antes que las propias.
+            .order_by(CategoriaDB.usuario_id.is_not(None), CategoriaDB.id)
+        ).scalars().all()
+        return [_como_categoria(f) for f in filas]
 
 
 def obtener(usuario_id: int, id: int) -> Categoria | None:
-    return next((c for c in listar(usuario_id) if c.id == id), None)
+    with database.sesion() as db:
+        fila = db.execute(
+            select(CategoriaDB).where(
+                CategoriaDB.id == id,
+                CategoriaDB.usuario_id.is_(None) | (CategoriaDB.usuario_id == usuario_id),
+            )
+        ).scalar_one_or_none()
+        return _como_categoria(fila) if fila is not None else None
 
 
 def _propia(usuario_id: int, id: int) -> Categoria:
@@ -121,30 +135,29 @@ def _validar(usuario_id: int, entrada: CategoriaEntrada, actual: Categoria | Non
 
 
 def crear(usuario_id: int, entrada: CategoriaEntrada) -> Categoria:
-    # TODO(backend): INSERT con usuario_id.
-    global _siguiente_id
     nombre = _validar(usuario_id, entrada, None)
-    categoria = Categoria(id=_siguiente_id, nombre=nombre, tipo=entrada.tipo, predeterminada=False)
-    _siguiente_id += 1
-    _propias[categoria.id] = (usuario_id, categoria)
-    return categoria
+    with database.sesion() as db:
+        fila = CategoriaDB(usuario_id=usuario_id, nombre=nombre, tipo=entrada.tipo)
+        db.add(fila)
+        db.flush()
+        return _como_categoria(fila)
 
 
 def actualizar(usuario_id: int, id: int, entrada: CategoriaEntrada) -> Categoria:
-    # TODO(backend): UPDATE por id y usuario_id (nunca una predeterminada).
-    from app.services import movimientos
     actual = _propia(usuario_id, id)
     nombre = _validar(usuario_id, entrada, actual)
-    categoria = actual.model_copy(update={"nombre": nombre, "tipo": entrada.tipo})
-    _propias[id] = (usuario_id, categoria)
-    movimientos.cambiar_categoria(usuario_id, id, ref(categoria))  # los movimientos llevan el nombre
-    return categoria
+    with database.sesion() as db:
+        db.execute(
+            update(CategoriaDB)
+            .where(CategoriaDB.id == id, CategoriaDB.usuario_id == usuario_id)
+            .values(nombre=nombre, tipo=entrada.tipo)
+        )
+    return Categoria(id=id, nombre=nombre, tipo=entrada.tipo, predeterminada=False)
 
 
 def eliminar(usuario_id: int, id: int, mover_a: int | None = None) -> None:
     """Si la categoría tiene movimientos, mover_a es la categoría (del mismo tipo) que los recibe."""
-    # TODO(backend): UPDATE movimientos SET categoria_id = :mover_a y DELETE, en una transacción.
-    from app.services import movimientos
+    from app.models.movimientos import MovimientoDB
     categoria = _propia(usuario_id, id)
     usos = _usos(usuario_id, id)
     if usos:
@@ -156,8 +169,22 @@ def eliminar(usuario_id: int, id: int, mover_a: int | None = None) -> None:
             raise ErrorValidacion({"mover_a": "Elige otra categoría."})
         if destino.tipo != categoria.tipo:
             raise ErrorValidacion({"mover_a": f"Elige una categoría de {_nombre_de_tipo(categoria.tipo)}."})
-        movimientos.cambiar_categoria(usuario_id, id, ref(destino))
-    del _propias[id]
+        # Reasignar y borrar en la misma transacción: no se pierde ningún movimiento.
+        with database.sesion() as db:
+            db.execute(
+                update(MovimientoDB)
+                .where(MovimientoDB.categoria_id == id,
+                       MovimientoDB.usuario_id == usuario_id)
+                .values(categoria_id=mover_a)
+            )
+            db.execute(
+                delete(CategoriaDB).where(CategoriaDB.id == id, CategoriaDB.usuario_id == usuario_id)
+            )
+    else:
+        with database.sesion() as db:
+            db.execute(
+                delete(CategoriaDB).where(CategoriaDB.id == id, CategoriaDB.usuario_id == usuario_id)
+            )
 
 
 def del_mes(usuario_id: int, anio: int, mes: int) -> CategoriasDelMes:

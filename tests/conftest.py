@@ -1,14 +1,16 @@
 import os
 
+from tests.base_de_pruebas import url_de_tests
+
 # Antes de importar la app: con una clave fija no avisa que falta, y las cookies firmadas en los
 # tests (tests/test_sesion.py) usan la misma.
 os.environ.setdefault("SECRET_KEY", "clave-de-pruebas-" + "x" * 32)
 # La base de los tests es siempre una en memoria, elegida ANTES de importar la app: si se eligiera en
 # un fixture, los fixtures que corren antes (p. ej. el que vacía los movimientos) borrarían la base
 # real data/usuarios.sqlite. Pisa cualquier DATABASE_PATH del entorno o del .env.
-# Para correr la suite contra un Postgres real (uno DE PRUEBAS: cada test vacía todas las tablas),
-# se pasa su URL en ZIRO_TEST_DATABASE_URL.
-URL_TESTS = os.environ.get("ZIRO_TEST_DATABASE_URL", "sqlite:///:memory:")
+# Para correr la suite contra un Postgres real se pasa su URL en ZIRO_TEST_DATABASE_URL. Tiene que
+# ser uno DE PRUEBAS (cada test vacía todas las tablas): tests/base_de_pruebas.py rechaza los demás.
+URL_TESTS = url_de_tests(os.environ)
 os.environ["DATABASE_PATH"] = URL_TESTS
 # DATABASE_URL tiene prioridad sobre DATABASE_PATH y en modo producción es obligatoria: también
 # apunta a la base de los tests. Así el load_dotenv() de app/main.py no trae la del .env, y los

@@ -65,3 +65,17 @@ tener varias copias de la app prendidas a la vez. Con SQLite los datos se perder
   Si un cambio futuro altera una columna, habrá que aplicarlo a mano en Neon (aún no hay migraciones).
 - **Datos locales:** la cuenta y los datos del computador (SQLite) no pasan a Vercel; allá se empieza
   con la base vacía.
+
+## Correr los tests contra Postgres
+
+Los tests usan SQLite en memoria. Para repetirlos contra un Postgres real (conviene antes de un
+cambio que toque la base):
+
+```bash
+docker run -d --name ziro-pg -e POSTGRES_PASSWORD=ziro -e POSTGRES_DB=ziro_test -p 127.0.0.1:55432:5432 postgres:17
+ZIRO_TEST_DATABASE_URL=postgresql://postgres:ziro@localhost:55432/ziro_test pytest
+docker rm -f ziro-pg
+```
+
+Cada test vacía todas las tablas de esa base. Por eso solo se acepta una cuyo nombre contenga `test`
+o `prueba`: con la URL de producción, los tests se niegan a correr.

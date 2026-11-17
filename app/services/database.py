@@ -99,15 +99,31 @@ def obtener_motor_y_sesion(ruta: Any = None) -> tuple[Engine, sessionmaker[Sessi
             event.listen(motor, "connect", _activar_claves_foraneas)
         fabrica = sessionmaker(autocommit=False, autoflush=False, bind=motor)
         _motores[url] = (motor, fabrica)
-
-        # Importar app.models (no solo usuarios) para que create_all conozca todas las tablas.
-        from app.models import Base
-        Base.metadata.create_all(bind=motor)
-        with fabrica() as db:
-            _sembrar_predeterminadas(db)
-            db.commit()
+        _preparar_base(motor, fabrica)
 
     return _motores[url]
+
+
+# Número cualquiera, fijo: identifica el candado con el que las instancias se turnan para preparar
+# la base (pg_advisory_xact_lock).
+_CANDADO_PREPARAR = 9_417_021
+
+
+def _preparar_base(motor: Engine, fabrica: sessionmaker[Session]) -> None:
+    """Crea las tablas que falten y siembra las categorías predeterminadas.
+
+    En Postgres lo hace dentro de una transacción con un candado: desplegada, la app puede prender
+    varias instancias a la vez sobre una base vacía (el primer despliegue) y, sin turnarse, chocan al
+    crear la misma tabla. El candado se suelta solo al terminar la transacción, así que sirve también
+    detrás del pooler de Neon. La instancia que espera encuentra todo hecho y no repite nada."""
+    # Importar app.models (no solo usuarios) para que create_all conozca todas las tablas.
+    from app.models import Base
+    with fabrica() as db:
+        if motor.dialect.name == "postgresql":
+            db.execute(text("SELECT pg_advisory_xact_lock(:candado)"), {"candado": _CANDADO_PREPARAR})
+        Base.metadata.create_all(bind=db.connection())
+        _sembrar_predeterminadas(db)
+        db.commit()
 
 
 def _hay_predeterminadas(db: Session) -> bool:

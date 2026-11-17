@@ -2,6 +2,9 @@
 base de datos, qué cuenta como producción y qué exige la app para arrancar ahí. Ningún test de este
 archivo se conecta a una base distinta de la de los tests."""
 import inspect
+import os
+import subprocess
+import sys
 import json
 from decimal import Decimal
 from pathlib import Path
@@ -233,3 +236,22 @@ def test_env_example_documenta_el_despliegue():
 
     assert "DATABASE_URL" in ejemplo
     assert "docs/despliegue-vercel.md" in ejemplo
+
+
+# ---------- Arranque en frío con varias instancias (solo con Postgres) ----------
+
+@pytest.mark.skipif(not database.es_postgres(database.url_base_de_datos()),
+                    reason="Necesita una base compartida entre procesos: correr con ZIRO_TEST_DATABASE_URL")
+def test_varias_instancias_arrancan_a_la_vez_sobre_una_base_vacia():
+    # En el primer despliegue la base está vacía y Vercel puede prender varias instancias a la vez:
+    # todas crean las tablas y siembran. Ninguna puede fallar por chocar con otra.
+    arranque = "from app.services import database; database.obtener_motor_y_sesion()"
+    entorno = os.environ | {"DATABASE_URL": database.url_base_de_datos()}
+    for _ in range(3):
+        Base.metadata.drop_all(bind=database.obtener_motor())
+        procesos = [subprocess.Popen([sys.executable, "-c", arranque], cwd=RAIZ, env=entorno,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+                    for _ in range(4)]
+        errores = [p.communicate()[1].strip().splitlines()[-1] for p in procesos if p.wait() != 0]
+        assert errores == []
+        assert _categorias_predeterminadas() == 7

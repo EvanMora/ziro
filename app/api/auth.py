@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app.schemas.auth import LoginEntrada, RegistroEntrada
 from app.services import limites, usuarios
 from app.services.comun import ErrorValidacion
+from app.web.red import ip_cliente
 from app.web.sesion import abrir_sesion, cerrar_sesion
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -18,7 +19,7 @@ DEMASIADOS_INTENTOS = "Hiciste demasiados intentos. Espera unos minutos antes de
 
 
 def _ip(request: Request) -> str:
-    return f"ip:{request.client.host if request.client else 'desconocida'}"
+    return f"ip:{ip_cliente(request)}"
 
 
 def _demasiados() -> JSONResponse:

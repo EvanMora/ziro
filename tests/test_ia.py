@@ -327,7 +327,7 @@ def test_el_analisis_se_guarda_y_no_gasta_otra_consulta(monkeypatch):
     segundo = client.get(URL_ANALISIS, params={"anio": 2026, "mes": 10}).json()
 
     assert primero == segundo and len(prompts) == 1
-    assert len(ia._consultas[1]) == 1
+    assert ia.consultas_registradas(1) == 1
 
 
 def test_si_cambian_los_movimientos_se_vuelve_a_analizar(monkeypatch):

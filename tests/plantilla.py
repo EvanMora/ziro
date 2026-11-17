@@ -62,6 +62,8 @@ def crear_usuario(id: int = USUARIO_PRUEBA_ID, correo: str = USUARIO_PRUEBA.corr
     with database.sesion() as db:
         db.add(UsuarioDB(id=id, nombre=nombre, email=correo, password_hash=_HASH,
                          creado_en=datetime.now(timezone.utc)))
+        db.flush()
+        database.ajustar_secuencias(db)  # en Postgres, un id fijo no avanza la secuencia
 
 
 def _mes_anterior(d: date) -> date:

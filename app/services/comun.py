@@ -22,10 +22,17 @@ class NoPermitido(Exception):
 _UNION = "\u200d"  # une emojis (👨‍👩‍👧): se conserva
 
 
+def _invisible(c: str) -> bool:
+    """Caracteres que no se ven ni separan palabras: los de formato (categoría Unicode Cf: espacio de
+    ancho cero, BOM, guion suave, unión de palabras...) y los de control (Cc: el nulo \\x00, escape...)
+    que no son espacios en blanco. El nulo, además, Postgres no lo acepta en ningún texto."""
+    categoria = unicodedata.category(c)
+    return categoria == "Cf" or (categoria == "Cc" and not c.isspace())
+
+
 def _sin_invisibles(texto: str, dejar_union: bool) -> str:
-    """Quita los caracteres de formato invisibles (categoría Unicode Cf: espacio de ancho cero,
-    BOM, guion suave, unión de palabras...)."""
-    return "".join(c for c in texto if (dejar_union and c == _UNION) or unicodedata.category(c) != "Cf")
+    """Quita los caracteres invisibles (ver _invisible)."""
+    return "".join(c for c in texto if (dejar_union and c == _UNION) or not _invisible(c))
 
 
 def limpiar_texto(texto: str) -> str:

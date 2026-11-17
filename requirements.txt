@@ -6,3 +6,4 @@ python-dotenv==1.2.4
 authlib==1.9.5
 itsdangerous==2.2.0
 sqlalchemy==2.1.8
+tzdata==2026.6  # zona horaria de Colombia aunque el servidor no traiga la base de zonas

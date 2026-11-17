@@ -37,8 +37,7 @@ import os
 import re
 import threading
 import time
-from collections import defaultdict, deque
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
@@ -50,6 +49,7 @@ from app.schemas.ia import (MAX_TEXTO, AnalisisMes, GrupoOrden, MovimientoPorOrd
                             OrdenAplicado, OrdenOtros)
 from app.schemas.movimientos import MovimientoEntrada
 from app.services import categorias as categorias_servicio
+from app.services import limites
 from app.services import movimientos as movimientos_servicio
 from app.services.comun import ErrorValidacion, limpiar_texto, normalizar
 from app.web.formato import dinero, nombre_mes, porcentaje
@@ -102,33 +102,51 @@ class LimiteExcedido(ErrorIA):
 
 
 # ---------- Límite de uso por usuario ----------
-# Ventana deslizante: se guarda la hora de cada consulta de las últimas 24 h y se cuentan las que
-# caen en cada ventana. TODO(backend): vive en la memoria del proceso, así que se reinicia con el
-# servidor y no se comparte entre varios procesos; con varios workers habría que llevarlo a la base
-# de datos o a Redis. Las rutas son síncronas (corren en hilos), de ahí el candado.
+# Ventana deslizante: se guarda el momento de cada consulta de las últimas 24 h y se cuentan las que
+# caen en cada ventana. Se guardan en la tabla `intentos` (services/limites.py), no en la memoria del
+# proceso: así el límite es el mismo aunque la app corra en varias instancias y no se reinicia con
+# el servidor. Las rutas son síncronas (corren en hilos), de ahí el candado dentro de cada proceso.
 _VENTANAS = ((60, LIMITE_POR_MINUTO), (24 * 60 * 60, LIMITE_POR_DIA))
-_consultas: dict[int, deque[float]] = defaultdict(deque)
+_ESPACIO = "ia"
 _candado = threading.Lock()
 
 
 def _reloj() -> float:
-    return time.monotonic()
+    """Segundos desde 1970 (hora de pared, no monotónica: se guarda en la base y la leen otras
+    instancias)."""
+    return time.time()
+
+
+def _momento(segundos: float) -> datetime:
+    return datetime.fromtimestamp(segundos, timezone.utc)
+
+
+def _clave_limite(usuario_id: int) -> str:
+    return f"{_ESPACIO}:{usuario_id}"
+
+
+def _consultas_desde(usuario_id: int, segundos: float) -> list[float]:
+    """Los momentos (en segundos) de las consultas del usuario posteriores a `segundos`."""
+    return [m.timestamp() for m in limites.momentos(_clave_limite(usuario_id), _momento(segundos))]
 
 
 def reiniciar_limite() -> None:
     """Olvida todas las consultas. Solo para tests."""
-    with _candado:
-        _consultas.clear()
+    limites.borrar_espacio(_ESPACIO)
+
+
+def consultas_registradas(usuario_id: int) -> int:
+    """Cuántas consultas del usuario cuentan hoy para el límite (las de las últimas 24 h)."""
+    ventana_mayor = max(segundos for segundos, _ in _VENTANAS)
+    return len(_consultas_desde(usuario_id, _reloj() - ventana_mayor))
 
 
 def _registrar_consulta(usuario_id: int) -> None:
     """Cuenta una consulta del usuario o lanza LimiteExcedido si ya no le quedan."""
     ahora = _reloj()
+    ventana_mayor = max(segundos for segundos, _ in _VENTANAS)
     with _candado:
-        horas = _consultas[usuario_id]
-        ventana_mayor = max(segundos for segundos, _ in _VENTANAS)
-        while horas and ahora - horas[0] >= ventana_mayor:
-            horas.popleft()
+        horas = _consultas_desde(usuario_id, ahora - ventana_mayor)
         for segundos, limite in _VENTANAS:
             en_ventana = [h for h in horas if ahora - h < segundos]
             if len(en_ventana) >= limite:
@@ -139,7 +157,7 @@ def _registrar_consulta(usuario_id: int) -> None:
                 else:
                     mensaje = "Llegaste al límite de consultas al asistente por hoy. Vuelve a intentarlo mañana."
                 raise LimiteExcedido(mensaje, espera)
-        horas.append(ahora)
+        limites.anotar(_clave_limite(usuario_id), _momento(ahora))
 
 
 class _RespuestaGemini(BaseModel):

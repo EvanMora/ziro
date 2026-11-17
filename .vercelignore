@@ -1,0 +1,16 @@
+# Lo que nunca se sube a Vercel: secretos, la base local y lo que la app no usa al correr.
+.env
+.env.*
+!.env.example
+data/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+tests/
+docs/
+.superpowers/
+*.sqlite
+*.sqlite3
+*.db
+*.log

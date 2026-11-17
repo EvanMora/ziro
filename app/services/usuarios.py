@@ -30,7 +30,7 @@ from app.models.usuarios import UsuarioDB
 from app.schemas.auth import UsuarioSesion
 from app.schemas.usuarios import Usuario
 from app.services import database
-from app.services.comun import ErrorValidacion
+from app.services.comun import ErrorValidacion, limpiar_texto
 
 
 def reiniciar() -> None:
@@ -100,7 +100,7 @@ _CORREO_REPETIDO = {"email": "Ese correo ya está registrado."}
 def crear(email: str, password: str, nombre: str = "") -> Usuario:
     """Crea un usuario con correo y contraseña (alta con registro). Lanza ErrorValidacion con todos
     los errores por campo (nombre, email, password)."""
-    nombre, email = nombre.strip(), normalizar_email(email)
+    nombre, email = limpiar_texto(nombre), normalizar_email(email)
     errores = _validar(nombre, email, password)
     if errores:
         raise ErrorValidacion(errores)
@@ -121,6 +121,8 @@ def crear(email: str, password: str, nombre: str = "") -> Usuario:
 
 def buscar_por_email(email: str) -> Usuario | None:
     """El usuario por su correo. Para el login con Google se busca por google_sub, no por correo."""
+    if "\x00" in email:
+        return None  # ningún correo registrado lo tiene, y Postgres no acepta ese carácter en una consulta
     with database.sesion() as db:
         usuario_db = db.execute(
             select(UsuarioDB).where(func.lower(UsuarioDB.email) == normalizar_email(email))

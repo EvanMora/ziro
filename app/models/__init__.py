@@ -1,6 +1,7 @@
 from app.models.base import Base
 from app.models.categorias import Categoria, CategoriaDB
 from app.models.cuentas import Cuenta, CuentaDB
+from app.models.intentos import IntentoDB
 from app.models.metas import AporteMetaDB, MetaDB
 from app.models.movimientos import Movimiento, MovimientoDB
 from app.models.pagos_tarjeta import PagoTarjeta, PagoTarjetaDB
@@ -14,6 +15,7 @@ __all__ = [
     "CategoriaDB",
     "Cuenta",
     "CuentaDB",
+    "IntentoDB",
     "MetaDB",
     "Movimiento",
     "MovimientoDB",

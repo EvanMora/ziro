@@ -17,6 +17,8 @@ from app.api import ia as api_ia
 from app.api import metas as api_metas
 from app.api import movimientos as api_movimientos
 from app.api import presupuestos as api_presupuestos
+from app.config import es_produccion
+from app.services import database
 from app.web import views
 from app.web.sesion import DURACION_RECORDAR, SinSesion, usuario_opcional
 
@@ -36,10 +38,11 @@ class Estaticos(StaticFiles):
 
 
 def clave_secreta() -> str:
-    """La clave que firma la cookie de sesión. En producción es obligatoria y larga; en desarrollo, si
-    falta, se genera una al azar (las sesiones se cierran al reiniciar el servidor)."""
+    """La clave que firma la cookie de sesión. En producción (app/config.py: también cualquier
+    despliegue en Vercel) es obligatoria y larga; en desarrollo, si falta, se genera una al azar (las
+    sesiones se cierran al reiniciar el servidor)."""
     clave = os.environ.get("SECRET_KEY", "")
-    if os.environ.get("ENVIRONMENT") == "production":
+    if es_produccion():
         if len(clave) < 32:
             raise RuntimeError("SECRET_KEY es obligatoria en producción y debe tener al menos 32 caracteres.")
         return clave
@@ -58,6 +61,9 @@ def sin_sesion(request: Request, exc: SinSesion):
 
 
 SECRET_KEY = clave_secreta()
+# Fallar al arrancar, con un mensaje claro, si en producción falta la base (y no en la primera
+# petición): no abre ninguna conexión, solo resuelve la URL.
+database.url_base_de_datos()
 MAX_AGE_COOKIE = int(DURACION_RECORDAR.total_seconds())
 
 app = FastAPI()
@@ -69,7 +75,7 @@ app.add_middleware(
     secret_key=SECRET_KEY,
     max_age=MAX_AGE_COOKIE,
     same_site="lax",
-    https_only=os.environ.get("ENVIRONMENT") == "production",
+    https_only=es_produccion(),
 )
 app.add_exception_handler(SinSesion, sin_sesion)
 

@@ -6,6 +6,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.main import app
 from app.services import database
@@ -137,8 +138,11 @@ def test_b_no_pasa_sus_movimientos_a_una_cuenta_de_a(datos_de_a):
 
 
 def test_claves_foraneas_activas():
-    with database.sesion() as db:
-        assert db.execute(text("PRAGMA foreign_keys")).scalar_one() == 1
+    # La base rechaza una fila que apunta a un usuario que no existe (en SQLite hay que pedirlo en
+    # cada conexión con PRAGMA foreign_keys=ON; Postgres lo hace siempre).
+    with pytest.raises(IntegrityError):
+        with database.sesion() as db:
+            db.execute(text("INSERT INTO categorias (usuario_id, nombre, tipo) VALUES (999, 'Huérfana', 'gasto')"))
 
 
 def test_eliminar_categoria_con_presupuesto(datos_de_a):

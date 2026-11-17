@@ -22,6 +22,17 @@
   const card = form.closest("[data-login-card]");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // Si venimos de un intento fallido con Google (/login?error=...), mostrar el aviso de error.
+  const GOOGLE_ERRORS = {
+    google: "No pudimos iniciar sesión con Google. Revisa los permisos e intenta de nuevo.",
+    google_no_configurado: "El inicio con Google no está disponible en este servidor.",
+  };
+  const errorParam = new URLSearchParams(window.location.search).get("error");
+  if (errorParam && GOOGLE_ERRORS[errorParam]) {
+    showAlert(GOOGLE_ERRORS[errorParam]);
+  }
+
+
   const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const MESSAGES = {
     emailMissing: "Escribe tu correo electrónico.",

@@ -1,13 +1,60 @@
 """Auth: registro, inicio y cierre de sesión. El inicio con Google (Authlib) es la otra rama de este
 router: /auth/google/login y /auth/google/callback, que guardan el id en la misma sesión."""
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.schemas.auth import LoginEntrada, RegistroEntrada
-from app.services import usuarios
+from app.services import usuarios, google_oauth
 from app.services.comun import ErrorValidacion
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+# Inicio de sesión con Google: son redirecciones (302) para el navegador, así que van en el mismo
+# router aunque la rama no sea JSON (el id del Google entra en la misma sesión que el resto).
+router_google = APIRouter(prefix="/auth/google", tags=["auth"])
+
+
+@router_google.get("/login", name="google_login")
+async def login_google(request: Request):
+    """Redirige al consentimiento de Google (Authlib). Si no hay credenciales configuradas, va a /login."""
+    cliente = google_oauth.cliente()
+    if cliente is None:
+        return RedirectResponse("/login?error=google_no_configurado", status_code=302)
+    redirect_uri = request.url_for("google_callback")
+    return await cliente.authorize_redirect(request, redirect_uri)
+
+
+@router_google.get("/callback", name="google_callback")
+async def callback_google(request: Request):
+    """Recibe el code de Google, lo canjea por el access token, lee el usuario y abre la sesión."""
+    cliente = google_oauth.cliente()
+    if cliente is None:
+        return RedirectResponse("/login?error=google_no_configurado", status_code=302)
+    try:
+        token = await cliente.authorize_access_token(request)
+        userinfo = token.get("userinfo") if token else None
+        if not userinfo:
+            userinfo = await cliente.userinfo(token=token) if token else None
+        email = (userinfo or {}).get("email") or ""
+        email = (email or "").strip().lower()
+        verificado = (userinfo or {}).get("email_verified")
+        if isinstance(verificado, str):
+            verificado = verificado.lower() == "true"
+        if not email or not userinfo.get("sub") or not verificado:
+            # Sin id o sin correo verificado no hay login (p. ej. el correo no está en los
+            # usuarios de prueba de Google o el permiso fue denegado).
+            return RedirectResponse("/login?error=google", status_code=302)
+        usuario = usuarios.buscar_o_vincular_con_google(
+            google_sub=str(userinfo["sub"]),
+            nombre=(userinfo.get("name") or "").strip(),
+            email=email,
+            foto_url=userinfo.get("picture") or None,
+        )
+    except Exception:
+        # El usuario canceló o Google falló: no se abre sesión.
+        return RedirectResponse("/login?error=google", status_code=302)
+    request.session["usuario_id"] = usuario.id
+    return RedirectResponse("/resumen", status_code=302)
 
 
 @router.post("/registro")

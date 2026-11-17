@@ -16,6 +16,7 @@ from app.services import ia as ia_servicio
 from app.services import movimientos as movimientos_servicio
 from app.services import presupuestos as presupuestos_servicio
 from app.services.dashboard import obtener_resumen
+from app.services import google_oauth
 from app.web import formato, presupuestos_vista
 from app.web.presentacion import (
     datos_pago,
@@ -130,7 +131,12 @@ def _navegacion_mes(anio: int, mes: int, hoy: date | None = None) -> dict:
 
 @router.get("/login", response_class=HTMLResponse)
 def login(request: Request):
-    context = {"year": date.today().year, "preview": build_preview()}
+    context = {
+        "year": date.today().year,
+        "preview": build_preview(),
+        # El botón "Continuar con Google" solo aparece si hay credenciales de OAuth configuradas.
+        "google_habilitado": google_oauth.configurado(),
+    }
     return templates.TemplateResponse(request, "login.html", context)
 
 

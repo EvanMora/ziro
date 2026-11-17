@@ -78,6 +78,50 @@ def obtener(id: int) -> Usuario | None:
         return _como_usuario(db.get(UsuarioDB, id))
 
 
+def buscar_por_google_sub(google_sub: str) -> Usuario | None:
+    """El usuario por el id de Google (sub). Para el inicio con Google."""
+    with database.sesion() as db:
+        usuario_db = db.execute(select(UsuarioDB).where(UsuarioDB.google_sub == google_sub)).scalars().first()
+        return _como_usuario(usuario_db)
+
+
+def buscar_o_vincular_con_google(
+    google_sub: str, nombre: str, email: str, foto_url: str | None
+) -> Usuario:
+    """Busca por google_sub, y si no existe lo registra dándole de alta.
+
+    Si ya existe un usuario con ese correo (p. ej. registrado con contraseña) se le vincula el
+    google_sub en vez de crear uno duplicado: el correo viene verificado por Google, así que el
+    que lo registró con contraseña es la misma persona. Se actualiza la foto_url si la recibimos.
+    """
+    usuario = buscar_por_google_sub(google_sub)
+    if usuario is not None:
+        if foto_url and usuario.foto_url != foto_url:
+            with database.sesion() as db:
+                db.get(UsuarioDB, usuario.id).foto_url = foto_url
+        return usuario
+
+    with database.sesion() as db:
+        existente = db.execute(select(UsuarioDB).where(UsuarioDB.email == email)).scalars().first()
+        if existente is not None:
+            # Correo ya registrado (con contraseña): se vincula la cuenta de Google a este usuario.
+            existente.google_sub = google_sub
+            if foto_url and not existente.foto_url:
+                existente.foto_url = foto_url
+            db.flush()
+            return _como_usuario(existente)
+        usuario_db = UsuarioDB(
+            nombre=nombre or email,
+            email=email,
+            google_sub=google_sub,
+            foto_url=foto_url,
+            creado_en=datetime.now(timezone.utc),
+        )
+        db.add(usuario_db)
+        db.flush()
+        return _como_usuario(usuario_db)
+
+
 def verificar(email: str, password: str) -> Usuario | None:
     """La cruza contra la contraseña hasheada. None si no existe el correo o la contraseña no
     coincide: no se filtra cuál falló."""

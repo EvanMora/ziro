@@ -48,6 +48,7 @@ app.include_router(api_cuentas.router_pagos)
 app.include_router(api_ia.router)
 app.include_router(api_presupuestos.router)
 app.include_router(api_auth.router)
+app.include_router(api_auth.router_google)
 
 
 @app.get("/", include_in_schema=False)

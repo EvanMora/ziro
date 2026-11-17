@@ -1011,3 +1011,22 @@
   }
 }
 
+
+/* Botón "Continuar con Google" */
+.login-card__google {
+  margin-top: var(--space-16);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.btn--google {
+  gap: var(--space-12);
+}
+
+.btn--google__icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  pointer-events: none;
+}

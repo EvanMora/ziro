@@ -6,7 +6,8 @@ Las firmas, los modelos de app/schemas/movimientos.py y las reglas de _validar()
 La app no siembra movimientos: cada usuario solo ve los que registró (los datos de prueba de los
 tests están en tests/plantilla.py).
 """
-from datetime import date
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 
 from sqlalchemy import delete, func, select, update
@@ -38,8 +39,17 @@ MAX_MONTO = Decimal("1000000000000")
 
 # Las cuentas salen de services/cuentas.py y las categorías de services/categorias.py.
 
+ZONA_HORARIA = ZoneInfo("America/Bogota")
+
+
+def _ahora_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def hoy() -> date:
-    return date.today()
+    """El día en Colombia. No date.today(): el servidor (Vercel) corre en UTC, donde de 7 p. m. a
+    medianoche ya es mañana."""
+    return _ahora_utc().astimezone(ZONA_HORARIA).date()
 
 
 def reiniciar() -> None:

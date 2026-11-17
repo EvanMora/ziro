@@ -34,3 +34,6 @@ htmlcov/
 
 # Bocetos y espacios de trabajo de Claude Code (superpowers)
 .superpowers/
+.vercel
+.env*
+!.env.example

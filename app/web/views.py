@@ -136,7 +136,7 @@ def _pagina_de_acceso(request: Request, plantilla: str):
     """El login y el registro: con sesión abierta no hacen falta y llevan al Resumen."""
     if usuario_opcional(request) is not None:
         return RedirectResponse("/resumen", status_code=303)
-    context = {"year": date.today().year, "preview": build_preview()}
+    context = {"year": movimientos_servicio.hoy().year, "preview": build_preview()}
     return templates.TemplateResponse(request, plantilla, context)
 
 
